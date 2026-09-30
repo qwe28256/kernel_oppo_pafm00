@@ -85,3 +85,6 @@ $(obj)/lkdtm_rodata_objcopy.o: $(obj)/lkdtm_rodata.o FORCE
 	$(call if_changed,objcopy)
 
 obj-$(CONFIG_OKL4_LINK_SHBUF)    += okl4-link-shbuf.o
+
+# OPLUS port: pop-up camera motor + digital hall (OPPO Find X / PAFM00)
+obj-$(CONFIG_OPPO_MOTOR)         += oppo/

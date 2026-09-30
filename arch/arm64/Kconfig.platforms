@@ -1,5 +1,26 @@
 menu "Platform selection"
 
+menu "OPLUS platform selection"
+	depends on ARCH_QCOM
+
+# OPLUS port note: CONFIG_MACH_OPLUS / CONFIG_MACH_OPLUS_SDM845 /
+# CONFIG_MACH_OPLUS_FINDX gate the Find X (17107/17127) DTBs in
+# arch/arm64/boot/dts/qcom/Makefile. OPPO's internal build injects these
+# symbols (they exist in no upstream Kconfig); defined here so
+# `make dtbs` reproduces the official kernel_dtb.
+
+config MACH_OPLUS
+	bool "Support OPPO devices"
+
+config MACH_OPLUS_SDM845
+	bool "Support OPPO SDM845 devices"
+	depends on MACH_OPLUS
+
+config MACH_OPLUS_FINDX
+	bool "Support OPPO Find X (PAFM00 17107 / 17127)"
+	depends on MACH_OPLUS_SDM845
+endmenu
+
 config ARCH_SUNXI
 	bool "Allwinner sunxi 64-bit SoC Family"
 	select ARCH_HAS_RESET_CONTROLLER

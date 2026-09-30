@@ -69,25 +69,38 @@ else
 fi
 
 if [ "${UART_DEBUG}" = "1" ]; then
-    log "== 3b/6 strip earlycon from header file =="
+    log "== 3b/6 edit header cmdline (console / earlycon variant) =="
     # magiskboot repack reads the TEXT header file dumped by unpack, not the
     # raw boot.img bytes (verified: editing boot.img had no effect on the
     # repacked image header).
+    #   UART_DEBUG=1           : console only, earlycon stripped
+    #   UART_EARLY=1 (w/ above): also earlycon=msm_geni_serial,0xA84000 +
+    #        clk_ignore_unused + regulator_ignore_unused so the earlycon
+    #        registers stay alive into late init (clk_disable_unused would
+    #        otherwise gate QUP1_S1 under earlycon's poll loop).
     python3 - "${WORK}/header" <<'PYEOF'
-import sys
+import sys, os
 p = sys.argv[1]
+early = os.environ.get('UART_EARLY') == '1'
 lines = open(p).read().split('\n')
 out, hit = [], 0
 for l in lines:
     if l.startswith('cmdline='):
+        base = l[len('cmdline='):]
         target = ' earlycon=msm_geni_serial,0xA84000'
-        assert target in l, f"earlycon not in cmdline: {l[:80]}..."
-        l = l.replace(target, '')
+        assert target in base, f"earlycon not in cmdline: {base[:80]}..."
+        base = base.replace(target, '')
+        if early:
+            base += ' earlycon=msm_geni_serial,0xA84000 clk_ignore_unused regulator_ignore_unused'
+            print("cmdline: console + EARLYCON + clk/regulator_ignore_unused")
+        else:
+            print("cmdline: earlycon stripped (console-only variant)")
+        assert len(base) < 512, f"cmdline too long: {len(base)}"
+        l = 'cmdline=' + base
         hit += 1
     out.append(l)
 assert hit == 1, f"cmdline lines touched: {hit}"
 open(p, 'w').write('\n'.join(out))
-print("header cmdline: removed", ' earlycon=msm_geni_serial,0xA84000'.strip())
 PYEOF
 fi
 

@@ -867,3 +867,6 @@ config OKL4_LINK_SHBUF
 	  transport. This driver presents the link to Linux as a character device
 	  which can be written to or read from to access the shared memory. An ioctl
 	  on the device is used to send a virtual interrupt to the partner cell.
+
+# OPLUS port: mirrors oppo_oss drivers/misc/Kconfig @ d3aa37fcc18c (line 860)
+source "drivers/misc/oppo/Kconfig"

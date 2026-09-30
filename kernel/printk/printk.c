@@ -57,6 +57,23 @@
 #include "braille.h"
 #include "internal.h"
 
+
+/* OPLUS port: verbatim from oppo_oss kernel/printk/printk.c @ d3aa37fcc18c
+ * (uart log control consumed by msm_geni_serial boot_with_console) */
+#ifdef VENDOR_EDIT
+#include <soc/oppo/boot_mode.h>
+
+#ifdef CONFIG_OPPO_DEBUG_BUILD
+bool printk_disable_uart = false;
+#else
+bool printk_disable_uart = true;
+#endif
+bool oem_get_uartlog_status(void)
+{
+	return !printk_disable_uart;
+}
+#endif /*VENDOR_EDIT*/
+
 #ifdef CONFIG_EARLY_PRINTK_DIRECT
 extern void printascii(char *);
 #endif

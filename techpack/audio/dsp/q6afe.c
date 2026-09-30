@@ -1022,6 +1022,40 @@ fail_cmd:
 return ret;
 }
 
+
+/*
+ * OPLUS port note: OPPO's PAFM00 ships DSM (Dynamic Speaker Management) hooks
+ * used by techpack/audio/asoc/codecs/max989xx (snd-soc-max989xx.ko). The OSS
+ * drop (oppo_oss_module) contains the codec but NOT the real DSM DSP backend
+ * (afe_dsm_setget_params et al. are absent from its q6afe.c/apr_audio-v2.h).
+ * Runtime evidence: device /sys/class/power_supply main speaker works, but the
+ * DSM calibration backend is proprietary. Provide stubs returning -ENOTSUPP so
+ * the codec binds and audio plays; DSM protection is a no-op (documented in
+ * MIGRATION_PAFM00.md known risks).
+ */
+#ifndef OPLUS_DSM_STUBS
+#define OPLUS_DSM_STUBS
+static int afe_dsm_stub_fail(void) { return -ENOTSUPP; }
+int afe_dsm_rx_set_params(uint8_t *payload, int size) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_rx_set_params);
+int afe_dsm_rx_get_params(uint8_t *payload, int size) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_rx_get_params);
+int afe_dsm_set_calib(uint8_t *payload) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_set_calib);
+int afe_dsm_pre_calib(uint8_t *payload) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_pre_calib);
+int afe_dsm_post_calib(uint8_t *payload) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_post_calib);
+int afe_dsm_get_calib(uint8_t *payload) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_get_calib);
+int afe_dsm_get_average_calib(uint8_t *payload) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_get_average_calib);
+int afe_dsm_ramp_dn_cfg(uint8_t *payload, int delay_in_ms) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_ramp_dn_cfg);
+int afe_dsm_get_libary_info(uint32_t *payload, int size) { return afe_dsm_stub_fail(); }
+EXPORT_SYMBOL(afe_dsm_get_libary_info);
+#endif /* OPLUS_DSM_STUBS */
+
 static int afe_spk_prot_prepare(int src_port, int dst_port, int param_id,
 		union afe_spkr_prot_config *prot_config)
 {

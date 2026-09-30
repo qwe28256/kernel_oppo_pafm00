@@ -281,6 +281,11 @@ DTC ?= $(objtree)/scripts/dtc/dtc
 # Silence warnings
 DTC_FLAGS += -q
 
+# OPLUS port note: OPPO's official kernel_dtb ships with __symbols__ (built with
+# -@), which ABL requires to resolve overlay references when applying dtbo
+# fragments. Mirror that here.
+DTC_FLAGS += -@
+
 # Disable noisy checks by default
 ifeq ($(findstring 1,$(KBUILD_ENABLE_EXTRA_GCC_CHECKS)),)
 DTC_FLAGS += -Wno-unit_address_vs_reg \

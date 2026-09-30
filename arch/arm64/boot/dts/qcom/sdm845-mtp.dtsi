@@ -48,7 +48,9 @@
 		label = "gpio-keys";
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&key_vol_up_default &key_vol_down_default>;
+		pinctrl-0 = <&key_vol_up_default
+			     &key_cam_snapshot_default
+			     &key_cam_focus_default>;
 
 		vol_up {
 			label = "volume_up";
@@ -60,17 +62,6 @@
 			linux,can-disable;
 		};
 
-		vol_down {
-			label = "volume_down";
-			gpios = <&pm8998_gpios 5 GPIO_ACTIVE_LOW>;
-			linux,input-type = <1>;
-			linux,code = <114>;
-			gpio-key,wakeup;
-			debounce-interval = <15>;
-			linux,can-disable;
-		};
-
-		/*
 		cam_snapshot {
 			label = "cam_snapshot";
 			gpios = <&pm8998_gpios 7 GPIO_ACTIVE_LOW>;
@@ -89,18 +80,6 @@
 			gpio-key,wakeup;
 			debounce-interval = <15>;
 			linux,can-disable;
-		};
-		*/
-
-		devinfo {
-			compatible = "oppo-devinfo";
-			Hw,sub_hwid_1 = <&tlmm 24 0x00>;
-			Hw,high_version = <&tlmm 116 0x00>;
-			pinctrl-names = "default","hw_sub_gpio_sleep", "high_version_active", "high_version_sleep";
-			pinctrl-0 = <&hw_sub_gpio_active>;
-			pinctrl-1 = <&hw_sub_gpio_sleep>;
-			pinctrl-2 = <&hw_version_active>;
-			pinctrl-3 = <&hw_version_sleep>;
 		};
 	};
 };

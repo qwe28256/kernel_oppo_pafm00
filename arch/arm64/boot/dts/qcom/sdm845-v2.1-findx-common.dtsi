@@ -1991,3 +1991,42 @@
 &pmi8998_bob_ao {
 	regulator-max-microvolt = <3900000>;
 };
+
+/*
+ * OPLUS port note: the OPPO additions below originally lived in
+ * sdm845-mtp.dtsi (import commit 6e9980f6fec8), which broke standalone
+ * sdm845-mtp.dtb builds (key_vol_down_default / hw_version_* labels only
+ * exist in this file). Moved here; DT node-merge semantics override the
+ * generic mtp gpio_keys for Find X (17107/17127) only.
+ */
+&soc {
+        gpio_keys {
+                pinctrl-names = "default";
+                pinctrl-0 = <&key_vol_up_default
+                             &key_vol_down_default>;
+
+                /delete-node/ cam_snapshot;
+                /delete-node/ cam_focus;
+
+                vol_down {
+                        label = "volume_down";
+                        gpios = <&pm8998_gpios 5 GPIO_ACTIVE_LOW>;
+                        linux,input-type = <1>;
+                        linux,code = <114>;
+                        gpio-key,wakeup;
+                        debounce-interval = <15>;
+                        linux,can-disable;
+                };
+
+                devinfo {
+                        compatible = "oppo-devinfo";
+                        Hw,sub_hwid_1 = <&tlmm 24 0x00>;
+                        Hw,high_version = <&tlmm 116 0x00>;
+                        pinctrl-names = "default","hw_sub_gpio_sleep", "high_version_active", "high_version_sleep";
+                        pinctrl-0 = <&hw_sub_gpio_active>;
+                        pinctrl-1 = <&hw_sub_gpio_sleep>;
+                        pinctrl-2 = <&hw_version_active>;
+                        pinctrl-3 = <&hw_version_sleep>;
+                };
+        };
+};

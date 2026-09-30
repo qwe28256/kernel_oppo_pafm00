@@ -41,6 +41,7 @@ for sym in OPLUS_SDM845_Q_CHARGER OPPO_MOTOR MACH_OPLUS_FINDX QPNP_SMB2 \
            TOUCHSCREEN_OPLUS MFD_SPMI_PMIC; do
     grep -q "^CONFIG_${sym}=y" .config || die "CONFIG_${sym} missing in .config"
 done
+grep -q "^CONFIG_QCA_CLD_WLAN=m" .config || die "CONFIG_QCA_CLD_WLAN=m missing (stock init.target.rc:127 insmods qca_cld3_wlan.ko)"
 log "config sanity: OK"
 
 log "== 2/5 Image =="
@@ -61,6 +62,18 @@ make ARCH=arm64 CROSS_COMPILE="${CROSS_COMPILE}" \
      INSTALL_MOD_PATH="${OUT}/modules_install" INSTALL_MOD_STRIP=1 \
      modules_install >>"$LOG" 2>&1
 log "modules_install: $(find "${OUT}/modules_install" -name '*.ko' | wc -l) ko"
+
+# Rename wlan.ko -> qca_cld3_wlan.ko BEFORE depmod so modules.dep references
+# the shipped filename. Evidence: stock qca_cld3_wlan.ko has
+# __this_module.name = "wlan" (this_module section @0x4cd200), i.e. the
+# in-tree MODNAME := wlan product is identical; only the FILE must be named
+# qca_cld3_wlan.ko because init.target.rc:127 insmods that exact path.
+QCACLD_DIR="${OUT}/modules_install/lib/modules/$(make CC=clang kernelrelease 2>/dev/null | tail -1)/kernel/drivers/staging/qcacld-3.0"
+if [ -f "${QCACLD_DIR}/wlan.ko" ]; then
+    mv "${QCACLD_DIR}/wlan.ko" "${QCACLD_DIR}/qca_cld3_wlan.ko"
+    log "renamed wlan.ko -> qca_cld3_wlan.ko (stock __this_module.name=wlan; init.target.rc:127)"
+fi
+[ -f "${QCACLD_DIR}/qca_cld3_wlan.ko" ] || die "qca_cld3_wlan.ko not produced"
 
 log "== 5/5 depmod + manifest =="
 MODDIR="${OUT}/modules_install/lib/modules/${KERREL}"

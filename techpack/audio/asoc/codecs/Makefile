@@ -38,3 +38,10 @@ wcd-core-objs	+= wcd934x/wcd934x-tables.o
 
 obj-$(CONFIG_WCD9XXX_CODEC_CORE) += wcd-core.o
 obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) += msm_hdmi_codec_rx.o
+
+# OPLUS port: OPPO Find X audio extensions (from oppo_oss_module techpack,
+# original wrapped in "#ifdef OPLUS_ARCH_EXTENDS" build-tooling markers).
+obj-$(CONFIG_SND_SOC_MAX98928)  += max989xx/
+obj-$(CONFIG_SND_SOC_IA6XX)     += audience/
+obj-$(CONFIG_SND_SOC_FSA4480)   += fsa4480/
+obj-$(CONFIG_SND_SOC_AS6313)    += as6313/

@@ -20,7 +20,11 @@ USERINCLUDE     += \
 # Needed to be compatible with the O= option
 LINUXINCLUDE    += \
                 -I$(srctree)/techpack/audio/include/uapi \
-                -I$(srctree)/techpack/audio/include
+                -I$(srctree)/techpack/audio/include \
+                -I$(srctree)/techpack/audio/asoc
+# OPLUS port note: asoc/ added because asoc/sdm845.c and friends use angled
+# includes of local headers (e.g. <device_event.h>); OPPO's internal build
+# provides this path via its Android build glue.
 
 ifeq ($(CONFIG_ARCH_SDM845), y)
 LINUXINCLUDE    += \

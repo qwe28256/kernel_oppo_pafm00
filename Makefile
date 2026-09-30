@@ -414,6 +414,13 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Wno-format-security \
 		   -std=gnu89
 KBUILD_CPPFLAGS := -D__KERNEL__
+
+# OPLUS port: mirrors oppo_oss Makefile @ d3aa37fcc18c lines 439-443 — OPPO builds
+# unconditionally define VENDOR_EDIT; it guards OPPO feature blocks across the tree.
+KBUILD_CFLAGS   +=   -DVENDOR_EDIT
+KBUILD_CPPFLAGS += -DVENDOR_EDIT
+CFLAGS_KERNEL   +=   -DVENDOR_EDIT
+CFLAGS_MODULE   +=   -DVENDOR_EDIT
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS_MODULE  := -DMODULE

@@ -1,0 +1,33 @@
+# OPLUS charger framework (ported from oppo_oss oppo/sdm845_r_11.0_find_x @ d3aa37fcc18c)
+# NOTE: unlike the OPPO original, the SHORT/SHIP/CHECK symbols are standalone here.
+# In the OPPO original they were nested under `if OPLUS_CHARGER` while findx_official_defconfig
+# sets them =y with OPLUS_CHARGER unset; nesting would silently drop them at olddefconfig.
+config OPLUS_SHORT_C_BATT_CHECK
+	bool "OPLUS batt short check"
+	depends on OPLUS_SDM845_Q_CHARGER
+	help
+	  Short-circuit battery check support (OPPO #ifdef CONFIG_OPLUS_SHORT_C_BATT_CHECK).
+
+config OPLUS_SHORT_HW_CHECK
+	bool "OPLUS batt HW short check"
+	depends on OPLUS_SDM845_Q_CHARGER
+	help
+	  Hardware short-circuit battery check support.
+
+config OPLUS_SHORT_USERSPACE
+	bool "OPLUS batt short userspace interface"
+	depends on OPLUS_SHORT_C_BATT_CHECK
+	help
+	  Userspace interface for battery short-circuit data.
+
+config OPLUS_CHECK_CHARGERID_VOLT
+	bool "OPLUS check chargerid volt"
+	depends on OPLUS_SDM845_Q_CHARGER
+	help
+	  Charger ID voltage check support.
+
+config OPLUS_SHIP_MODE_SUPPORT
+	bool "OPLUS ship mode support"
+	depends on OPLUS_SDM845_Q_CHARGER
+	help
+	  Shipping mode (factory long-storage) support.

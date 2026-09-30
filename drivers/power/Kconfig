@@ -2,3 +2,14 @@ source "drivers/power/avs/Kconfig"
 source "drivers/power/reset/Kconfig"
 source "drivers/power/supply/Kconfig"
 source "drivers/power/qcom/Kconfig"
+
+# OPLUS charger entry (mirrors oppo_oss drivers/power/Kconfig @ d3aa37fcc18c).
+# Legacy OPLUS_SDM845_CHARGER / OPLUS_SDM845P_CHARGER of the OPPO original are
+# intentionally not defined (findx_official_defconfig keeps them "not set").
+config OPLUS_SDM845_Q_CHARGER
+	tristate "OPLUS SDM845 Q charger driver"
+	depends on MFD_SPMI_PMIC
+	help
+	  Enables support for the oppo Q charging framework
+
+source "drivers/power/oppo/Kconfig"

@@ -7,3 +7,6 @@ ccflags-y += -Idrivers/media/platform/msm/camera/cam_smmu/
 ccflags-y += -Idrivers/media/platform/msm/camera/cam_cpas/include
 
 obj-$(CONFIG_SPECTRA_CAMERA) +=  cam_sensor_util.o
+ccflags-y += -Idrivers/media/platform/msm/camera/cam_sensor_io
+ccflags-y += -I/cam_sensor_module/cam_sensor_utils
+ccflags-y += -Idrivers/media/platform/msm/camera/cam_sensor_module/cam_sensor_utils

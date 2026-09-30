@@ -62,9 +62,19 @@
 
 /* align with upstream sdm845-oppo-findx-common.dtsi chosen block;
  * merge into the root /chosen defined in sdm845.dtsi (no label there,
- * so we re-open / { chosen { ... } } which dtc merges) */
+ * so we re-open / { chosen { ... } } which dtc merges).
+ *
+ * IMPORTANT: bootargs here REPLACES the base "rcupdate... nokmem,nosocket"
+ * (same-name property merge) and carries the console parameters IN THE DT.
+ * Rationale: the flashed image produced zero earlycon output; if ABL
+ * drops/replaces the boot.img header cmdline, header params never reach
+ * the kernel. DT bootargs travel inside the blob ABL hands over, so
+ * console/earlycon survive any header-cmdline handling. Keep the base
+ * bootargs content when replacing.
+ */
 / {
         chosen {
+                bootargs = "rcupdate.rcu_expedited=1 cgroup.memory=nokmem,nosocket console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xA84000 clk_ignore_unused regulator_ignore_unused";
                 stdout-path = "serial0:115200n8";
         };
 };

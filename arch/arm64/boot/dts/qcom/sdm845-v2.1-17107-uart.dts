@@ -1,0 +1,299 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * PAFM00 (Find X) UART-DEBUG single dtb.
+ *
+ * Why this file exists:
+ *  - CONFIG_BUILD_ARM64_DT_OVERLAY is not set, so the Makefile builds only
+ *    the bare-SoC base sdm845-v2.1-17107.dtb; sdm845-v2.1-mtp-overlay-17107.dts
+ *    (which carries findx-common board content) is never compiled in this
+ *    configuration. Verified: dtb disassembly of the packaged kernel_dtb has
+ *    exactly 1 "oppo," reference (root prjversion) and 0 oplus nodes.
+ *  - This variant inlines the same dtsi set as the overlay plus the SoC
+ *    skeleton, keeping board-id/msm-id identical to the overlay.
+ *  - Enables uart9 (GENI QUP1 SE9 @ 0xa84000) as the serial console.
+ *    Upstream reference (~/uboot-mainline/dts/upstream, Linux mainline
+ *    sdm845-oppo-findx-common.dtsi):
+ *        aliases { serial0 = &uart9; };
+ *        &uart9 { label = "LS-UART1"; status = "okay"; };
+ *    GPIO mapping (mainline sdm845.dtsi qup_uart9_default): TX=GPIO4, RX=GPIO5.
+ *    CAF equivalent node: qupv3_se9_2uart ("qcom,msm-geni-console"),
+ *    pinctrl qupv3_se9_2uart_active already defined in sdm845-pinctrl.dtsi.
+ *    SE9 i2c/spi stay disabled; the bq27541 fuel gauge sits on SE10
+ *    (&qupv3_se10_i2c in sdm845-v2.1-findx-common.dtsi), so enabling SE9
+ *    uart conflicts with nothing.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/clock/qcom,gcc-sdm845.h>
+#include <dt-bindings/clock/qcom,camcc-sdm845.h>
+#include <dt-bindings/clock/qcom,dispcc-sdm845.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+#include "sdm845-v2.1.dtsi"
+#include "sdm845-sde-display.dtsi"
+#include "sdm845-mtp.dtsi"
+#include "sdm845-audio-overlay.dtsi"
+#include "sdm845-v2.1-findx-common.dtsi"
+
+/ {
+        model = "Qualcomm Technologies, Inc. SDM845 v2.1 PAFM00";
+        compatible = "qcom,sdm845";
+        qcom,msm-id = <321 0x20001>;
+        qcom,board-id = <8 0>;
+        oppo,prjversion = <1 17107>;
+};
+
+&qupv3_se9_2uart {
+        status = "okay";
+};
+
+/* camera pinctrl tweaks copied from sdm845-v2.1-mtp-overlay-17107.dts */
+
+&cam_sensor_mclk0_active {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+&cam_sensor_mclk0_suspend {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+&cam_sensor_mclk1_active {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+&cam_sensor_mclk1_suspend {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+&cam_sensor_iris_suspend {
+        config {
+                /delete-property/ bias-pull-down;
+                bias-disable; /* No PULL */
+        };
+};
+
+&cam_sensor_mclk2_active {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+&cam_sensor_mclk2_suspend {
+        config {
+                drive-strength = <6>; /* 6 MA */
+        };
+};
+
+/* pinctrl restore: findx-common's /delete-node/ statements were written for
+ * OPPO's internal pinctrl dtsi naming; in this tree they leave dangling
+ * references from live nodes (pcie controllers, SE2/SE15 controllers,
+ * gpio-regulator@1). Re-add the 15 pin-state nodes AFTER findx-common so
+ * dtc phandle_references passes. The referencing controllers stay disabled
+ * (status "disabled" in sdm845.dtsi/sdm845-qupv3.dtsi), so nothing probes.
+ * [Pinned by pack-uart-debug work, 2026-10-01]
+ */
+&tlmm {
+   pcie0_clkreq_default: pcie0_clkreq_default {
+    mux {
+     pins = "gpio36";
+     function = "pci_e0";
+    };
+
+    config {
+     pins = "gpio36";
+     drive-strength = <2>;
+     bias-pull-up;
+    };
+   };
+   pcie0_perst_default: pcie0_perst_default {
+    mux {
+     pins = "gpio35";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio35";
+     drive-strength = <2>;
+     bias-pull-down;
+    };
+   };
+   pcie0_wake_default: pcie0_wake_default {
+    mux {
+     pins = "gpio37";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio37";
+     drive-strength = <2>;
+     bias-pull-up;
+    };
+   };
+   pcie1_clkreq_default: pcie1_clkreq_default {
+    mux {
+     pins = "gpio103";
+     function = "pci_e1";
+    };
+
+    config {
+     pins = "gpio103";
+     drive-strength = <2>;
+     bias-pull-up;
+    };
+   };
+   pcie1_perst_default: pcie1_perst_default {
+    mux {
+     pins = "gpio102";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio102";
+     drive-strength = <2>;
+     bias-pull-down;
+    };
+   };
+   pcie1_wake_default: pcie1_wake_default {
+    mux {
+     pins = "gpio104";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio104";
+     drive-strength = <2>;
+     bias-pull-down;
+    };
+   };
+   qupv3_se2_i2c_active: qupv3_se2_i2c_active {
+    mux {
+     pins = "gpio27", "gpio28";
+     function = "qup2";
+    };
+
+    config {
+     pins = "gpio27", "gpio28";
+     drive-strength = <2>;
+     bias-disable;
+    };
+   };
+   qupv3_se2_i2c_sleep: qupv3_se2_i2c_sleep {
+    mux {
+     pins = "gpio27", "gpio28";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio27", "gpio28";
+     drive-strength = <2>;
+     bias-pull-up;
+    };
+   };
+   qupv3_se2_spi_active: qupv3_se2_spi_active {
+    mux {
+     pins = "gpio27", "gpio28", "gpio29",
+        "gpio30";
+     function = "qup2";
+    };
+
+    config {
+     pins = "gpio27", "gpio28", "gpio29",
+        "gpio30";
+     drive-strength = <6>;
+     bias-disable;
+    };
+   };
+   qupv3_se2_spi_sleep: qupv3_se2_spi_sleep {
+    mux {
+     pins = "gpio27", "gpio28", "gpio29",
+        "gpio30";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio27", "gpio28", "gpio29",
+        "gpio30";
+     drive-strength = <6>;
+     bias-disable;
+    };
+   };
+   qupv3_se15_i2c_active: qupv3_se15_i2c_active {
+    mux {
+     pins = "gpio81", "gpio82";
+     function = "qup15";
+    };
+
+    config {
+     pins = "gpio81", "gpio82";
+     drive-strength = <2>;
+     bias-disable;
+    };
+   };
+   qupv3_se15_i2c_sleep: qupv3_se15_i2c_sleep {
+    mux {
+     pins = "gpio81", "gpio82";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio81", "gpio82";
+     drive-strength = <2>;
+     bias-pull-up;
+    };
+   };
+   qupv3_se15_spi_active: qupv3_se15_spi_active {
+    mux {
+     pins = "gpio81", "gpio82", "gpio83",
+        "gpio84";
+     function = "qup15";
+    };
+
+    config {
+     pins = "gpio81", "gpio82", "gpio83",
+        "gpio84";
+     drive-strength = <6>;
+     bias-disable;
+    };
+   };
+   qupv3_se15_spi_sleep: qupv3_se15_spi_sleep {
+    mux {
+     pins = "gpio81", "gpio82", "gpio83",
+        "gpio84";
+     function = "gpio";
+    };
+
+    config {
+     pins = "gpio81", "gpio82", "gpio83",
+        "gpio84";
+     drive-strength = <6>;
+     bias-disable;
+    };
+   };
+  camera_rear_dvdd_en_default: camera_rear_dvdd_en_default {
+   pins = "gpio12";
+   function = "normal";
+   power-source = <0>;
+   output-low;
+  };
+};

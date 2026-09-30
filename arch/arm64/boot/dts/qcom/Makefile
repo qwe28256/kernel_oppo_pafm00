@@ -10,8 +10,9 @@ sdm845-v2.1-mtp-overlay-17107.dtbo-base := sdm845-v2.1-17107.dtb
 sdm845-v2.1-mtp-overlay-17127.dtbo-base := sdm845-v2.1-17127.dtb
 else # CONFIG_BUILD_ARM64_DT_OVERLAY
 dtb-$(CONFIG_MACH_OPLUS_FINDX) += \
-	sdm845-v2.1-17107.dtb \
-	sdm845-v2.1-17127.dtb
+        sdm845-v2.1-17107.dtb \
+        sdm845-v2.1-17107-uart.dtb \
+        sdm845-v2.1-17127.dtb
 endif # CONFIG_BUILD_ARM64_DT_OVERLAY
 endif # CONFIG_MACH_OPLUS_SDM845
 

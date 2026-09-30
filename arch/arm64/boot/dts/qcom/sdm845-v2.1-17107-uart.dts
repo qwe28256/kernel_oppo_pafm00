@@ -60,6 +60,15 @@
         status = "okay";
 };
 
+/* align with upstream sdm845-oppo-findx-common.dtsi chosen block;
+ * merge into the root /chosen defined in sdm845.dtsi (no label there,
+ * so we re-open / { chosen { ... } } which dtc merges) */
+/ {
+        chosen {
+                stdout-path = "serial0:115200n8";
+        };
+};
+
 /* camera pinctrl tweaks copied from sdm845-v2.1-mtp-overlay-17107.dts */
 
 &cam_sensor_mclk0_active {

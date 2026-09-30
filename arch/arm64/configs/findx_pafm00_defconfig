@@ -5688,3 +5688,8 @@ CONFIG_OPPO_DEVICE_INFO=y
 # WLAN: stock init.rc insmods qca_cld3_wlan.ko (init.target.rc:127)
 # findx_official_defconfig leaves it unset; enable as =m to match stock
 CONFIG_QCA_CLD_WLAN=m
+# UART debug console (LS-UART1 / uart9 @0xa84000, sdm845.dtsi has
+# serial0 = &qupv3_se9_2uart). Gates CONFIG_SERIAL_CORE_CONSOLE: without it
+# msm_geni_serial.c compiles out its of_device_id table entirely and the
+# uart9 node never probes -> no ttyMSM0 -> zero serial output.
+CONFIG_SERIAL_MSM_GENI_CONSOLE=y

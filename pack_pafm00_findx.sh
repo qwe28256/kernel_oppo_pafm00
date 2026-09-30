@@ -74,13 +74,28 @@ MPKG="${PACK}/vendor-modules"; mkdir -p "${MPKG}"
 # stock layout: flat /vendor/lib/modules with metadata files
 find "${MODDIR}" -name "*.ko" -exec cp {} "${MPKG}/" \;
 cp "${MODDIR}/modules.dep" "${MODDIR}/modules.alias" "${MODDIR}/modules.softdep" "${MPKG}/" 2>/dev/null || die "depmod metadata missing"
-# modules.load: stock order first (stock kos that we still ship), then new codecs
+# modules.load: keep the stock 22-entry ORDER; ship only entries that exist
+# as ko. The 10 techpack audio drivers (wcd-core pinctrl-wcd swr-wcd-ctrl
+# snd-soc-wcd9xxx wcd-dsp-glink snd-soc-wcd934x snd-soc-wcd-mbhc snd-soc-wsa881x
+# snd-soc-sdm845 snd-soc-wcd-spi) are BUILT-IN in our kernel (sdm845auto.conf
+# make-vars =y; tristate.conf does not know them, see REVIEW_BUILTIN.md) so
+# their stock lines must be dropped (no ko to insmod). qca_cld3_wlan.ko keeps
+# its stock position (21st of 22); stock init.target.rc:127 insmods it.
 STOCK_LOAD="/tmp/pafm00_phase0/vendor_modules/vendor/lib/modules/modules.load"
 [ -f "${STOCK_LOAD}" ] || STOCK_LOAD="${SRC}/../modules.load.fallback"
-{ grep -E '\.ko$' "${STOCK_LOAD}" 2>/dev/null || true
-  for k in snd-soc-max989xx snd-soc-ia6xx snd-soc-fsa4480 snd-soc-as6313; do
-      [ -f "${MPKG}/${k}.ko" ] && echo "${k}.ko"
-  done; } > "${MPKG}/modules.load"
+DROPPED=""
+while read -r m; do
+    [ -n "${m}" ] || continue
+    if [ -f "${MPKG}/${m}" ]; then
+        echo "${m}"
+    else
+        DROPPED="${DROPPED} ${m}"
+    fi
+done < <(grep -E '\.ko$' "${STOCK_LOAD}") > "${MPKG}/modules.load"
+# note: log() AFTER the redirect loop -- log() echoes to stdout, which inside
+# the loop would pollute modules.load (observed in pack-20261001-052221)
+[ -n "${DROPPED}" ] && log "modules.load: dropped built-in audio (no ko shipped):${DROPPED}"
+grep -q '^qca_cld3_wlan\.ko$' "${MPKG}/modules.load" || die "qca_cld3_wlan.ko missing from modules.load"
 log "modules packaged: $(ls "${MPKG}"/*.ko | wc -l) ko, load list $(wc -l < "${MPKG}/modules.load") entries"
 tar -C "${MPKG}" -cf "${PACK}/vendor-modules.tar" .
 sha256sum "${PACK}/boot-pafm00.img" "${PACK}/vendor-modules.tar" "${SRC}/dtbo/dtbo.img" > "${PACK}/SHA256SUMS.pack"

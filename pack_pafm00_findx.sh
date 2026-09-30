@@ -19,13 +19,13 @@ TREE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${TREE}/out-pafm00"
 SRC="${TREE}/oppo_device_out"
 PACK="${OUT}/pack-$(date +%Y%m%d-%H%M%S)"
-KERREL="4.9.337-perf+"
+
 mkdir -p "${PACK}"
 LOG="${PACK}/pack.log"
 log(){ echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
 die(){ log "FATAL: $*"; exit 1; }
 
-[ -f "${OUT}/arch/arm64/boot/Image" ] || die "run build_pafm00_findx.sh first"
+[ -f "${TREE}/arch/arm64/boot/Image" ] || die "run build_pafm00_findx.sh first"
 [ -f "${SRC}/boot.img" ] || die "original boot.img missing"
 log "== 1/6 unpack stock boot template =="
 WORK="${PACK}/bootwork"; mkdir -p "${WORK}"
@@ -35,7 +35,7 @@ cp "${SRC}/boot.img" "${WORK}/boot.img"
 ( cd "${WORK}" && magiskboot unpack -h boot.img ) >>"$LOG" 2>&1 || true
 
 log "== 2/6 single-member gzip kernel =="
-python3 - "${OUT}/arch/arm64/boot/Image" "${WORK}/kernel.gz" <<'EOF'
+python3 - "${TREE}/arch/arm64/boot/Image" "${WORK}/kernel.gz" <<'EOF'
 import zlib, sys
 src, dst = sys.argv[1], sys.argv[2]
 raw = open(src, 'rb').read()
@@ -50,7 +50,7 @@ EOF
 log "kernel: stock gz 12099139 -> ours $(stat -c%s "${WORK}/kernel.gz")"
 
 log "== 3/6 replace kernel_dtb =="
-cp "${OUT}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107.dtb" "${WORK}/kernel_dtb"
+cp "${TREE}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107.dtb" "${WORK}/kernel_dtb"
 log "kernel_dtb: $(stat -c%s "${WORK}/kernel_dtb") bytes (stock 842055)"
 
 log "== 4/6 repack boot.img (magiskboot recomputes CHECKSUM) =="
@@ -68,11 +68,11 @@ for f in kernel kernel_dtb; do :; done
 cat "${PACK}/newboot.header.txt" | tee -a "$LOG"
 
 log "== 6/6 vendor modules update =="
-MODDIR="${OUT}/modules_install/lib/modules/${KERREL}"
+MODDIR="$(cat out-pafm00/kernelrelease.txt | xargs -I{} echo out-pafm00/modules_install/lib/modules/{})"
 [ -d "${MODDIR}" ] || die "modules_install missing"
 MPKG="${PACK}/vendor-modules"; mkdir -p "${MPKG}"
 # stock layout: flat /vendor/lib/modules with metadata files
-cp "${MODDIR}"/*.ko "${MPKG}/"
+find "${MODDIR}" -name "*.ko" -exec cp {} "${MPKG}/" \;
 cp "${MODDIR}/modules.dep" "${MODDIR}/modules.alias" "${MODDIR}/modules.softdep" "${MPKG}/" 2>/dev/null || die "depmod metadata missing"
 # modules.load: stock order first (stock kos that we still ship), then new codecs
 STOCK_LOAD="/tmp/pafm00_phase0/vendor_modules/vendor/lib/modules/modules.load"

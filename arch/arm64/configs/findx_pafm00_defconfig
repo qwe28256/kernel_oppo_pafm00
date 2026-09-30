@@ -5685,3 +5685,6 @@ CONFIG_MACH_OPLUS_FINDX=y
 # devinfo (register_device_proc) lives in drivers/soc/oplus as OPPO_DEVICE_INFO
 # (defconfig's OPPO_DEVICE_IFNO is OPPO's internal symbol spelling)
 CONFIG_OPPO_DEVICE_INFO=y
+# WLAN: stock init.rc insmods qca_cld3_wlan.ko (init.target.rc:127)
+# findx_official_defconfig leaves it unset; enable as =m to match stock
+CONFIG_QCA_CLD_WLAN=m

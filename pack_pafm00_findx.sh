@@ -59,6 +59,51 @@ print(f"kernel.gz single-member gzip OK: {len(data)} bytes (raw {len(raw)})")
 EOF
 log "kernel: stock gz 12099139 -> ours $(stat -c%s "${WORK}/kernel.gz")"
 
+log "== 2b/6 append fstab.default to ColorOS ramdisk =="
+# ColorOS first-stage init reads fstab via "/fstab." + androidboot.fstab_suffix,
+# and ABL appends fstab_suffix=default, but the ramdisk only ships fstab.qcom ->
+# ReadDefaultFstab() failed -> first stage mount skipped -> sepolicy unfindable ->
+# init: InitFatalReboot (signal 6) -> reboot bootloader. Appending a second cpio
+# archive containing fstab.default (= fstab.qcom) fixes first stage mount.
+# initramfs parses concatenated archives; the original archive bytes stay intact.
+python3 - "${WORK}/ramdisk.cpio" <<'PYEOF'
+import sys
+p = sys.argv[1]
+orig = open(p, 'rb').read()
+# walk the newc archive to pull fstab.qcom's data
+i, fdata = 0, None
+while i + 110 <= len(orig) and orig[i:i+6] == b'070701':
+    f = [int(orig[i+6+k*8:i+14+k*8], 16) for k in range(13)]
+    namesize, filesize = f[11], f[6]
+    name = orig[i+110:i+110+namesize-1]
+    dstart = i + 110 + namesize + ((4 - (110 + namesize) % 4) % 4)
+    if name == b'fstab.qcom':
+        fdata = orig[dstart:dstart + filesize]
+        break
+    i = dstart + filesize + ((4 - filesize % 4) % 4)
+assert fdata is not None, 'fstab.qcom not found in ramdisk'
+
+def entry(name, data, mode=0o100440):
+    nb = name + b'\x00'
+    e = b'070701' + ''.join(f'{v:08X}' for v in
+            [0, mode, 0, 0, 1, 0, len(data), 0, 0, 0, 0, len(nb), 0]).encode() + nb
+    e += b'\x00' * ((4 - len(e) % 4) % 4)
+    e += data + b'\x00' * ((4 - len(data) % 4) % 4)
+    return e
+
+def trailer():
+    nb = b'TRAILER!!!\x00'
+    e = b'070701' + b'00000000' * 13 + nb
+    return e + b'\x00' * ((4 - len(e) % 4) % 4)
+
+seg = entry(b'fstab.default', fdata) + trailer()
+# kernel initramfs parses concatenated archives: seg creates /fstab.default,
+# then the pristine original archive follows (contains no fstab.default).
+open(p, 'wb').write(seg + orig)
+print(f'fstab.default appended ({len(fdata)} bytes); ramdisk total {len(seg) + len(orig)}')
+PYEOF
+
+
 log "== 3/6 replace kernel_dtb =="
 if [ "${UART_DEBUG}" = "1" ]; then
     cp "${TREE}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107-uart.dtb" "${WORK}/kernel_dtb"
@@ -105,7 +150,7 @@ PYEOF
 fi
 
 log "== 4/6 repack boot.img (magiskboot recomputes CHECKSUM) =="
-( cd "${WORK}" && rm -f kernel ramdisk.cpio dtb
+( cd "${WORK}" && rm -f kernel dtb
   mv kernel.gz kernel
   magiskboot repack boot.img new-boot.img ) >>"$LOG" 2>&1
 mv "${WORK}/new-boot.img" "${PACK}/boot-pafm00.img"

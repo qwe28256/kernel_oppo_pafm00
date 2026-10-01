@@ -29,8 +29,8 @@
 #include <linux/workqueue.h>
 
 #define UEVENT_HELPER_PATH_LEN		256
-#define UEVENT_NUM_ENVP                 128     /* OPLUS: 64 too small for charger uevents (60+ props), matches oppo_oss */
-#define UEVENT_BUFFER_SIZE              4096    /* OPLUS: 2048 overflowed on charger uevents, matches oppo_oss */
+#define UEVENT_NUM_ENVP                 256     /* OPLUS: 128 still overflows - PAFM00 charger psy uevents exceed 4096 bytes (280 'buffer size too small' WARNs per boot, 2026-10-01) */
+#define UEVENT_BUFFER_SIZE              16384   /* OPLUS: 4096 overflowed on charger uevents, 4x headroom */
 
 #ifdef CONFIG_UEVENT_HELPER
 /* path to the userspace helper executed on an event */

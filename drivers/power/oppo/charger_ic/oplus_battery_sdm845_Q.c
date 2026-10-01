@@ -6904,18 +6904,29 @@ static void oplus_ccdetect_enable(void)
 	if (oplus_ccdetect_check_is_gpio(chip) != true)
 		return;
 
-	/* set DRP mode */
+	/*
+	 * PAFM00: keep Type-C role locked to UFP. Evidence (2026-10-01,
+	 * TWRP session, kernel 4.9.337-perf+ #11 + TWRP dtb): ccdetect_work
+	 * toggled UFP<->DRP every ~120ms because gpio31 (ccdetect_gpio)
+	 * reads oscillate under our kernel; each DRP switch bounced the
+	 * USB session - android_work CONNECTED/DISCONNECTED uevents
+	 * flapping at ~8Hz (dmesg 1362.4-1364.4) -> ffs.adb teardown ->
+	 * deterministic adb drop on streaming logcat. DRP is only needed
+	 * for charger-type detection (cosmetic); a phone attached to a
+	 * host must stay UFP. Both branches now write UFP_EN_CMD_BIT.
+	 */
+	/* keep sink mode only (was: set DRP mode) */
 	rc = smblib_masked_write(chg, TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG,
-			TYPEC_POWER_ROLE_CMD_MASK, 0x0);//bit[2:0]=0
+			TYPEC_POWER_ROLE_CMD_MASK, UFP_EN_CMD_BIT);//bit[2:0]=0x4
 	if (rc < 0) {
-		printk(KERN_ERR "[OPLUS_CHG][%s]: Couldn't clear 0x1368[0] rc=%d\n", __func__, rc);
+		printk(KERN_ERR "[OPLUS_CHG][%s]: Couldn't set 0x1368[2] rc=%d\n", __func__, rc);
 	}
 
 	rc = smblib_read(chg, TYPE_C_INTRPT_ENB_SOFTWARE_CTRL_REG, &stat);
 	if (rc < 0) {
 		printk(KERN_ERR "[OPLUS_CHG][%s]: Couldn't read 0x1368 rc=%d\n", __func__, rc);
 	} else {
-		printk(KERN_ERR "[OPLUS_CHG][%s]: reg0x1368[0x%x], bit[2:0]=0(DRP)\n", __func__, stat);
+		printk(KERN_ERR "[OPLUS_CHG][%s]: reg0x1368[0x%x], bit[2:0]=4(UFP,locked)\n", __func__, stat);
 	}
 }
 

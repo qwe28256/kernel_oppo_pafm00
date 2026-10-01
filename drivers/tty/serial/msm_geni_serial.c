@@ -220,14 +220,13 @@ static struct msm_geni_serial_port msm_geni_serial_ports[GENI_UART_NR_PORTS];
 #ifdef VENDOR_EDIT
 static bool boot_with_console(void)
 {
-	if(get_boot_mode() == MSM_BOOT_MODE__FACTORY)
-		return true;
-	else {
-		if(oem_get_uartlog_status() == true)
-			return true;
-		else
-			return false;
-	}
+	/* UART-DEBUG OVERRIDE: OPPO stock logic only enables the uart console
+	 * in FACTORY mode or with the oem uartlog switch on (observed: totally
+	 * silent TTL on a healthy kernel - __msm_geni_serial_console_write()
+	 * returns early and module init registers the _no_cons driver). For
+	 * Find X bring-up we ALWAYS want the console; returning true makes
+	 * every call site take the upstream (non-VENDOR_EDIT) behaviour. */
+	return true;
 }
 
 #endif /* VENDOR_EDIT */

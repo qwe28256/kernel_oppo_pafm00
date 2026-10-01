@@ -29,8 +29,8 @@
 #include <linux/workqueue.h>
 
 #define UEVENT_HELPER_PATH_LEN		256
-#define UEVENT_NUM_ENVP			64	/* number of env pointers */
-#define UEVENT_BUFFER_SIZE		2048	/* buffer for the variables */
+#define UEVENT_NUM_ENVP                 128     /* OPLUS: 64 too small for charger uevents (60+ props), matches oppo_oss */
+#define UEVENT_BUFFER_SIZE              4096    /* OPLUS: 2048 overflowed on charger uevents, matches oppo_oss */
 
 #ifdef CONFIG_UEVENT_HELPER
 /* path to the userspace helper executed on an event */

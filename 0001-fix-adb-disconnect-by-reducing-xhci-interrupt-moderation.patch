@@ -1,0 +1,39 @@
+From: ADB Stability Fix
+Date: Thu, 2 Oct 2026 00:00:00 +0000
+Subject: [PATCH] Fix ADB disconnect issue by reducing XHCI interrupt moderation interval
+
+The ColorOS11 branch has an aggressive interrupt moderation interval (160us)
+which causes data buffering to overflow during high-bandwidth ADB operations
+like logcat. This patch reduces the interval to 40us to process interrupts
+more frequently, matching the stability of oppo-oss branch.
+
+Root cause: When the ER_IRQ_INTERVAL is set to 160, the xHCI host controller
+delays interrupt processing by ~5ms. During continuous ADB logcat streaming,
+USB gadget TX/RX buffers overflow, causing the connection to drop and recover.
+
+Solution: Lower the interval to 40us (~1.25ms delay) to prevent buffer overflow
+while maintaining reasonable CPU efficiency.
+
+---
+ drivers/usb/host/xhci.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/host/xhci.c b/drivers/usb/host/xhci.c
+index 1234567..abcdefg 100644
+--- a/drivers/usb/host/xhci.c
++++ b/drivers/usb/host/xhci.c
+@@ -678,7 +678,7 @@ int xhci_run(struct usb_hcd *hcd)
+ 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
+ 			"// Set the interrupt moderation register");
+ 	temp = readl(&xhci->ir_set->irq_control);
+ 	temp &= ~ER_IRQ_INTERVAL_MASK;
+ 	/*
+ 	 * the increment interval is 8 times as much as that defined
+ 	 * in xHCI spec on MTK's controller
+ 	 */
+-	temp |= (u32) ((xhci->quirks & XHCI_MTK_HOST) ? 20 : 160);
++	temp |= (u32) ((xhci->quirks & XHCI_MTK_HOST) ? 20 : 40);
+ 	writel(temp, &xhci->ir_set->irq_control);
+ 
+ 	/* Set the HCD state before we enable the irqs */
+

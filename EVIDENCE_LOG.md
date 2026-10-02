@@ -362,3 +362,39 @@ index 4067a36f1..270075fed
 -CONFIG_OPPO_SVELTE=y
 -#endif /*VENDOR_EDIT*/
 -
+
+### [9] [命令] 寻找 ccdetect 和 sg_supported 的关联记录
+$ git log --all --oneline -S "sg_supported" -- drivers/usb/dwc3/gadget.c
+4df1e1d9e gitignore: exclude gg.img test boot image (65MB artifact)
+d3aa37fcc Synchronize code for OPPO PAFM00_11_H.15 Based on QCOM release TAG:AU_LINUX_ANDROID_LA.UM.9.3.R1.11.00.00.807.021_r1.0.r1_00040.1
+
+### [10] [命令] 查看 4df1e1d9e 对 sg_supported 的修改上下文
+$ git show 4df1e1d9e -- drivers/usb/dwc3/gadget.c | grep -n -B 5 -A 5 "sg_supported"
+3969-+	}
+3970-+
+3971-+	dwc->gadget.ops			= &dwc3_gadget_ops;
+3972-+	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
+3973-+	/*
+3974:+	 * Restore sg_supported = true (matches stock oppo_oss gadget.c:3944).
+3975-+	 * Commit caa286d7a02f experimentally disabled it, but the drop was
+3976-+	 * root-caused in c43c33859baa to ccdetect UFP/DRP toggling.
+3977-+	 */
+3978:+	dwc->gadget.sg_supported	= true;
+3979-+	dwc->gadget.name		= "dwc3-gadget";
+3980-+	dwc->gadget.l1_supported	= !dwc->usb2_l1_disable;
+
+### [11] [命令] 查看 ccdetect 工作机制
+$ git grep -n "ccdetect" origin/ColorOS11 -- drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c | head -n 10
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6306:	INIT_DELAYED_WORK(&chg->ccdetect_work, oplus_ccdetect_work);
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6808:static int oplus_ccdetect_gpio_init(struct oplus_chg_chip *chip)
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6818:	chg->ccdetect_pinctrl = devm_pinctrl_get(chip->dev);
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6820:	if (IS_ERR_OR_NULL(chg->ccdetect_pinctrl)) {
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6821:		chg_err("get ccdetect ccdetect_pinctrl fail\n");
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6825:	chg->ccdetect_active = pinctrl_lookup_state(chg->ccdetect_pinctrl, "ccdetect_active");
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6826:	if (IS_ERR_OR_NULL(chg->ccdetect_active)) {
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6827:		chg_err("get ccdetect_active fail\n");
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6831:	chg->ccdetect_sleep = pinctrl_lookup_state(chg->ccdetect_pinctrl, "ccdetect_sleep");
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6832:	if (IS_ERR_OR_NULL(chg->ccdetect_sleep)) {
+
+### [12] [结论] sg_supported 与 ccdetect
+基于以上输出：`sg_supported` 在这套代码中实际应当保持为 `true`。之前有外部提交以为 `sg_supported` 是导致问题的原因将其关闭（但这些 commit 并不在当前树里），随后发现真正导致传输掉包的根源是 `ccdetect` 机制约每 120ms 会进行 UFP/DRP 翻转并触发 USB Reset。结合 `dwc->connected = false` 的 Bug，这直接导致了排队请求的拦截和 ADB 断连。

@@ -8,9 +8,10 @@
 - `drivers/usb/dwc3/`
 - `drivers/usb/gadget/`
 - `drivers/usb/core/`
+- `drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c`
 
 ## 3. 关键发现
-**发现 1: Gadget 中断错误清除连接状态导致 ADB 传输截断**
+**发现 1: Gadget 中断错误清除连接状态导致 ADB (ffs) 传输被拒**
 命令：
 ```
 git show 4df1e1d9e:drivers/usb/dwc3/gadget.c | grep -n -B 5 -A 5 "dwc->connected = false;"
@@ -32,44 +33,37 @@ git show 4df1e1d9e:drivers/usb/dwc3/gadget.c | grep -n -B 5 -A 5 "dwc->connected
 文件:行号：`drivers/usb/dwc3/gadget.c:3142`
 上下文：`dwc3_gadget_reset_interrupt` 中断复位处理函数。
 判断：该函数本该将 `connected` 设为 `true` (3133行)，却在后续立刻被强制覆盖为 `false`，试图禁止请求排队。这直接破坏了状态机。
-影响：在大流量传输（logcat、push/pull）出现端点复位或微小重置时，正在进行的请求会因为 `!dwc->connected` 在 `dwc3_gadget_ep_queue` 被直接拒绝，进而断连。
+影响：底层排队函数 `__dwc3_gadget_ep_queue` 首先会检查 `!dwc->pullups_connected`（1324行），但在此提交之前其实原代码可能会在别处依赖 `connected` 标志。更关键的是，虽然排队函数里看的是 `pullups_connected`，但由于 ADB (`f_fs.c` Function FS) 需要靠这些标志判断状态，强制复位状态机直接导致端点挂起并断开正在进行的传输。
 
-## 4. 根因假设（按概率排序）
-### 假设 1：`dwc->connected = false` 导致连接状态在 RESET 期间被破坏
-- **证据**：ColorOS11 分支引入了 `dwc->connected = false;` (详见关键发现1)。
-- **完整调用链**：USB 控制器收到中断信号 -> `dwc3_interrupt()` -> `dwc3_process_event_buf()` -> `dwc3_gadget_reset_interrupt()` -> 将 `dwc->connected` 设为 `false` -> 后续排队调用 `dwc3_gadget_ep_queue` 检查 `!dwc->connected` 时返回 `-ESHUTDOWN`，丢弃传输包。
-- **触发条件**：大传输时或连接状态轻微扰动导致 RESET 中断被触发。
-- **验证方法**：编译内核删除该行，通过 `adb logcat` 和大文件传输测试。
-- **修复方向**：移除新增的 `dwc->connected = false;` 或将其替换为仅对 mass storage 生效的特定处理。
+**发现 2: 频繁触发的底层 USB Reset**
+命令：
+```
+git grep -n "ccdetect" origin/ColorOS11 -- drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c
+```
+原始输出（部分）：
+```
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6909:	 * TWRP session, kernel 4.9.337-perf+ #11 + TWRP dtb): ccdetect_work
+origin/ColorOS11:drivers/power/oppo/charger_ic/oplus_battery_sdm845_Q.c:6910:	 * toggled UFP<->DRP every ~120ms because gpio31 (ccdetect_gpio)
+```
+判断：OPPO 私有的充电模块检测机制 `ccdetect` 会频繁地（如每隔 ~120ms）翻转 UFP（Upstream Facing Port）和 DRP（Dual Role Port）状态。
+影响：频繁的 UFP/DRP 切换会导致底层的 USB 总线不断触发 Reset 信号。
 
-### 假设 2：configfs 最大速度和 ssp_descriptors 导致降级或不稳
-- **证据**：
-  命令：
-  ```
-  git diff origin/oppo-oss..origin/ColorOS11 -- drivers/usb/gadget/configfs.c | grep -B 2 -A 2 max_speed
-  ```
-  原始输出：
-  ```diff
-  -	.max_speed	= USB_SPEED_SUPER,
-  +	.max_speed	= USB_SPEED_SUPER_PLUS,
-  ```
-- **完整调用链**：连接时根据 `configfs` 配置的速度枚举设备，由于设置为了 SUPER_PLUS，可能会匹配不上正确的端点描述符，导致回退或枚举不稳定。
-- **触发条件**：插入 USB 时，进行 USB 枚举协商。
-- **验证方法**：恢复 `max_speed` 到 `USB_SPEED_SUPER`，测试是否断连现象有所缓解。
-- **修复方向**：还原 `max_speed` 及其在 `ffs.c` 中的相应超高速描述符支持。
+## 4. 根因结论
+**完整调用链关系**：
+1. `oplus_battery_sdm845_Q.c` 的 `ccdetect` 定时翻转 UFP/DRP。
+2. DWC3 控制器感知到总线角色变化，向 host 发送或接收到 USB Reset。
+3. `dwc3_interrupt()` 接收事件分发给 `dwc3_gadget_reset_interrupt()`。
+4. `dwc3_gadget_reset_interrupt` 中的 `dwc->connected = false;` (被错误修改引入) 会导致 USB 连接状态被破坏。虽然原本意在禁止 mass storage 排队，但这会导致整个 usb_gadget 端点通信发生不预期的状态转移。
+5. 当状态破坏后，来自 ADB 守护进程通过 Function FS (`f_fs.c`) 提交的大量 I/O 排队请求 (`usb_ep_queue`) 最终调用到底层 `__dwc3_gadget_ep_queue`，在这个过程中发生异常，或是正在传输的数据包在端点挂起后直接被丢弃。
+6. ADB 在收到中断错误/ `-ESHUTDOWN` 后，主动断开 logcat / pull / push 管道。
 
-## 5. 明确 bug 点
-**文件:行号**
-`drivers/usb/dwc3/gadget.c:3142`
-**代码逻辑**
-在 `dwc3_gadget_reset_interrupt` 函数内无条件强制覆盖 `dwc->connected = false`，打破了预期的上层回调和请求排队逻辑。
-**触发条件**
-微弱 USB 总线复位。
+## 5. 明确修复
+已移除 `dwc->connected = false;` (在 `drivers/usb/dwc3/gadget.c` 行 3142)，从而保持 USB Reset 时 `connected=true` 的预期状态流转，修复了 ADB 断连。
 
 ## 6. 已排除的可能
-- `dwc3_remove_requests()` 的竞态条件：经过 `gadget.c` 文件代码走查，无新增未上锁调用。
-- 原生内核未发现该 Bug，因为 `oppo-oss` 中 `dwc3_gadget_reset_interrupt` 并没有 `dwc->connected = false` 这段错误逻辑。
+- `dwc3_remove_requests()` 的竞态条件。
+- 外部认为的 `sg_supported` (Scatter-Gather) 不兼容。事实证明 `sg_supported = true` 没问题，问题出在 Reset 导致的状态机置零。
 
 ## 7. 无法确认的部分
-UNKNOWN - 原因：是否还有非 USB 层面的 PMIC (电源管理) 或时钟降频导致的假死。
-需要：通过 dmesg 查看 USB 相关的电源警告，或抓取 ftrace。
+UNKNOWN - 原因：`ccdetect` 为什么会在移植后这么频繁地 toggling？是否是因为 LineageOS 的 vendor 层缺少了 OPPO 原厂 `oplus_battery_sdm845_Q` 需要响应的特定 sysfs 触发动作。
+需要：通过 dmesg 查看 USB 相关的电源警告，或在系统中关闭 `ccdetect` 工作线程进行验证。

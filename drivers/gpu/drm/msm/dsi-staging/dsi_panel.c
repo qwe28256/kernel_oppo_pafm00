@@ -864,6 +864,18 @@ static int dsi_panel_led_bl_register(struct dsi_panel *panel,
 }
 #endif
 
+/*
+ * OPPO Find X dim-layer ("DC") backlight support.
+ * Evidence: ~/oppo_oss/drivers/gpu/drm/msm/dsi-staging/dsi_panel.c:984-1037
+ * The variables are owned by oppo_display_private_api.c and driven from
+ * userspace through /sys/kernel/oppo_display/{dimlayer_bl_en,dimlayer_set_bl}.
+ */
+extern int oppo_dimlayer_bl_alpha;
+extern int oppo_dimlayer_bl_enabled;
+extern int oppo_dimlayer_bl_enable_real;
+ktime_t oppo_backlight_time;
+u32 oppo_last_backlight = 0;
+u32 oppo_backlight_delta = 0;
 static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
 {
@@ -876,6 +888,31 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 	dsi = &panel->mipi_device;
+
+	/* keep HBM (onscreen fingerprint / sunlight) untouched */
+	if (panel->is_hbm_enabled)
+		return 0;
+
+	if (bl_lvl > oppo_last_backlight)
+		oppo_backlight_delta = bl_lvl - oppo_last_backlight;
+	else
+		oppo_backlight_delta = oppo_last_backlight - bl_lvl;
+	oppo_last_backlight = bl_lvl;
+	oppo_backlight_time = ktime_get();
+	if (oppo_dimlayer_bl_enabled != oppo_dimlayer_bl_enable_real) {
+		oppo_dimlayer_bl_enable_real = oppo_dimlayer_bl_enabled;
+		if (oppo_dimlayer_bl_enable_real)
+			pr_err("Enter DC backlight\n");
+		else
+			pr_err("Exit DC backlight\n");
+	}
+	if (oppo_dimlayer_bl_enable_real) {
+		/* avoid effect power and aod mode */
+		if (bl_lvl > 1) {
+			bl_lvl = oppo_dimlayer_bl_alpha;
+			mdelay(7);
+		}
+	}
 
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)

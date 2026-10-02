@@ -139,6 +139,14 @@ void dsi_rect_intersect(const struct dsi_rect *r1,
 	}
 }
 
+/* OPPO Find X brightness path hooks.
+ * Evidence: ~/oppo_oss/drivers/gpu/drm/msm/dsi-staging/dsi_display.c:161-250
+ */
+extern bool oppo_ffl_trigger_finish;
+extern int oppo_start_ffl_thread(void);
+extern int lcd_closebl_flag;
+extern int lcd_closebl_flag_fp;
+
 int dsi_display_set_backlight(void *display, u32 bl_lvl)
 {
 	struct dsi_display *dsi_display = display;
@@ -158,7 +166,38 @@ int dsi_display_set_backlight(void *display, u32 bl_lvl)
 		goto error;
 	}
 
+	if ((bl_lvl == 0 && panel->bl_config.bl_level != 0) ||
+	    (bl_lvl != 0 && panel->bl_config.bl_level == 0))
+		pr_err("backlight level changed %d -> %d\n",
+		       panel->bl_config.bl_level, bl_lvl);
+
+	if (panel->need_power_on_backlight && panel->type != EXT_BRIDGE) {
+		panel->need_power_on_backlight = false;
+		rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+				DSI_CORE_CLK, DSI_CLK_ON);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_POST_ON_BACKLIGHT cmds, rc=%d\n",
+			       panel->name, rc);
+			goto error;
+		}
+
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_POST_ON_BACKLIGHT);
+
+		rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
+				DSI_CORE_CLK, DSI_CLK_OFF);
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_POST_ON_BACKLIGHT cmds, rc=%d\n",
+			       panel->name, rc);
+			goto error;
+		}
+
+		oppo_start_ffl_thread();
+	}
+
 	panel->bl_config.bl_level = bl_lvl;
+
+	if (oppo_ffl_trigger_finish == false)
+		goto error;
 
 	/* scale backlight */
 	bl_scale = panel->bl_config.bl_scale;
@@ -176,6 +215,13 @@ int dsi_display_set_backlight(void *display, u32 bl_lvl)
 		pr_err("[%s] failed to enable DSI core clocks, rc=%d\n",
 		       dsi_display->name, rc);
 		goto error;
+	}
+
+	if (lcd_closebl_flag) {
+		pr_err("silence reboot we should set backlight to zero\n");
+		bl_temp = 0;
+	} else if (bl_lvl) {
+		lcd_closebl_flag_fp = 0;
 	}
 
 	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);

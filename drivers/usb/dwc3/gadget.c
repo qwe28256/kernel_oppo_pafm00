@@ -1100,19 +1100,19 @@ static struct dwc3_trb *dwc3_ep_prev_trb(struct dwc3_ep *dep, u8 index)
 
 static u32 dwc3_calc_trbs_left(struct dwc3_ep *dep)
 {
-	struct dwc3_trb		*tmp;
 	u8			trbs_left;
 
 	/*
-	 * If enqueue & dequeue are equal than it is either full or empty.
-	 *
-	 * One way to know for sure is if the TRB right before us has HWO bit
-	 * set or not. If it has, then we're definitely full and can't fit any
-	 * more transfers in our ring.
+	 * If the enqueue & dequeue are equal then the TRB ring is either full
+	 * or empty. It's considered full when there are DWC3_TRB_NUM-1 of TRBs
+	 * pending to be processed by the driver.
 	 */
 	if (dep->trb_enqueue == dep->trb_dequeue) {
-		tmp = dwc3_ep_prev_trb(dep, dep->trb_enqueue);
-		if (!tmp || tmp->ctrl & DWC3_TRB_CTRL_HWO)
+		/*
+		 * If there is any request remained in the started_list at
+		 * this point, that means there is no TRB available.
+		 */
+		if (!list_empty(&dep->started_list))
 			return 0;
 
 		return DWC3_TRB_NUM - 1;
@@ -3740,7 +3740,6 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3 *dwc)
 
 	dwc->bh_handled_evt_cnt[dwc->bh_dbg_index] += (evt->count / 4);
 	evt->count = 0;
-	evt->flags &= ~DWC3_EVENT_PENDING;
 	ret = IRQ_HANDLED;
 
 	/* Unmask interrupt */
@@ -3751,6 +3750,9 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3 *dwc)
 	if (dwc->imod_interval)
 		dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0),
 				DWC3_GEVNTCOUNT_EHB);
+
+	/* Keep the clearing of DWC3_EVENT_PENDING at the end */
+	evt->flags &= ~DWC3_EVENT_PENDING;
 
 	return ret;
 }
@@ -3774,12 +3776,14 @@ static irqreturn_t dwc3_thread_interrupt(int irq, void *_dwc)
 
 	start_time = ktime_get();
 
+	local_bh_disable();
 	spin_lock_irqsave(&dwc->lock, flags);
 	dwc->bh_handled_evt_cnt[dwc->bh_dbg_index] = 0;
 
 	ret = dwc3_process_event_buf(dwc);
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
+	local_bh_enable();
 
 	temp_time = ktime_to_us(ktime_sub(ktime_get(), start_time));
 	dwc->bh_completion_time[dwc->bh_dbg_index] = temp_time;

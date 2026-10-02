@@ -6,3 +6,4 @@ obj-y		+= digital_hall_ic/
 
 obj-y		+= oppo_motor.o
 obj-y		+= oppo_motor_notifier.o
+obj-$(CONFIG_OPPO_SIMPLE_ROOT)	+= opporoot.o

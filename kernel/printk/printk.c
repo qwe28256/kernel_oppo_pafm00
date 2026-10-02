@@ -63,11 +63,9 @@
 #ifdef VENDOR_EDIT
 #include <soc/oppo/boot_mode.h>
 
-#ifdef CONFIG_OPPO_DEBUG_BUILD
 bool printk_disable_uart = false;
-#else
-bool printk_disable_uart = true;
-#endif
+module_param_named(disable_uart, printk_disable_uart, bool, S_IRUGO | S_IWUSR);
+
 bool oem_get_uartlog_status(void)
 {
 	return !printk_disable_uart;

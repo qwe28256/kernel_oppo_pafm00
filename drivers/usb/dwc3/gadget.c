@@ -3958,6 +3958,11 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 
 	dwc->gadget.ops			= &dwc3_gadget_ops;
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
+	/*
+	 * Restore sg_supported = true (matches stock oppo_oss gadget.c:3944).
+	 * Commit caa286d7a02f experimentally disabled it, but the drop was
+	 * root-caused in c43c33859baa to ccdetect UFP/DRP toggling.
+	 */
 	dwc->gadget.sg_supported	= true;
 	dwc->gadget.name		= "dwc3-gadget";
 	dwc->gadget.l1_supported	= !dwc->usb2_l1_disable;

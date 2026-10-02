@@ -215,6 +215,8 @@ struct dsi_panel {
 	enum dsi_dms_mode dms_mode;
 
 	bool sync_broadcast_en;
+	bool is_hbm_enabled;
+	bool need_power_on_backlight;
 
 	struct dsi_panel_exd_config exd_config;
 };
@@ -317,5 +319,7 @@ int dsi_panel_parse_esd_reg_read_configs(struct dsi_panel *panel,
 				struct device_node *of_node);
 
 void dsi_panel_ext_bridge_put(struct dsi_panel *panel);
+
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel, enum dsi_cmd_set_type type);
 
 #endif /* _DSI_PANEL_H_ */

@@ -327,6 +327,12 @@ extern char ___assert_task_state[1 - 2*!!(
 #endif
 
 /* Task command name length */
+extern int sysctl_slide_boost_enabled;
+extern int sysctl_uifirst_enabled;
+extern int sysctl_launcher_boost_enabled;
+extern int sysctl_frame_rate;
+extern int sysctl_task_cpustats_enable;
+
 #define TASK_COMM_LEN 16
 
 extern const char *sched_window_reset_reasons[];

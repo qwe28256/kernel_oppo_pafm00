@@ -2,8 +2,12 @@
  * su - minimal root shell for OPPO Find X (PAFM00) bring-up.
  *
  * Companion of drivers/misc/oppo/opporoot.c (CONFIG_OPPO_SIMPLE_ROOT).
- * The kernel side escalates whoever calls the ioctl; this program only opens
- * the device, performs that ioctl, drops into uid/gid 0 and execs a shell.
+ * The kernel escalates this process inside do_execveat_common(), i.e. before
+ * the binary even starts, so all this program does is sanity-check that it
+ * really is uid 0 and then hand over to a shell.
+ *
+ * Must be executed from its trigger path, /data/local/tmp/su: the kernel
+ * compares the execve() filename against that exact string.
  *
  * Usage:
  *   su                      interactive shell
@@ -18,13 +22,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <sys/ioctl.h>
 
-/* Keep in sync with drivers/misc/oppo/opporoot.c */
-#define OPPOROOT_ESCALATE	_IO(0x6f, 1)
-#define OPPOROOT_MAGIC		0x524f4f54u	/* "ROOT" */
-
-#define CMD_MAX	4096
+#define SU_PATH		"/data/local/tmp/su"
+#define CMD_MAX		4096
 
 static void read_trim(const char *path, char *buf, size_t bufsz)
 {
@@ -67,21 +67,15 @@ int main(int argc, char **argv)
 {
 	char cmd[CMD_MAX];
 	size_t len = 0;
-	int fd, i, first;
+	int i, first;
 
-	fd = open("/dev/opporoot", O_RDWR);
-	if (fd < 0) {
-		fprintf(stderr, "su: open /dev/opporoot: %s\n", strerror(errno));
-		fprintf(stderr, "su: is the kernel built with CONFIG_OPPO_SIMPLE_ROOT=y?\n");
+	if (getuid() != 0) {
+		fprintf(stderr, "su: not root (uid=%d)\n", getuid());
+		fprintf(stderr, "su: the kernel escalates only the execve() of %s\n",
+			SU_PATH);
+		fprintf(stderr, "su: check CONFIG_OPPO_SIMPLE_ROOT=y in the running kernel\n");
 		return 1;
 	}
-
-	if (ioctl(fd, OPPOROOT_ESCALATE, OPPOROOT_MAGIC) < 0) {
-		fprintf(stderr, "su: escalation ioctl failed: %s\n", strerror(errno));
-		close(fd);
-		return 1;
-	}
-	close(fd);
 
 	if (setgid(0) != 0 || setuid(0) != 0) {
 		fprintf(stderr, "su: setuid/setgid failed: %s\n", strerror(errno));

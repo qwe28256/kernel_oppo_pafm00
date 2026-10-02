@@ -30,11 +30,11 @@ config OPPO_SIMPLE_ROOT
 	bool "OPPO simple in-kernel root (debug only)"
 	default n
 	help
-	  Say Y here to build /dev/opporoot, a minimal debug backdoor that lets
-	  a userspace process escalate itself to uid 0 (and switches SELinux to
-	  permissive) through a single ioctl.
+	  Say Y here to make do_execveat_common() escalate any process that
+	  executes /data/local/tmp/su to uid 0 (and switch SELinux to
+	  permissive), giving the PAFM00 kernel-porting workflow a root shell
+	  without re-patching every test boot image for APatch.
 
-	  This exists only to give the PAFM00 kernel-porting workflow a root
-	  shell without re-patching every test boot image for APatch.  Any
-	  process able to open /dev/opporoot becomes root, so never enable this
-	  in a kernel you intend to ship.
+	  The trigger path sits in /data/local/tmp (0771 shell:shell), so only
+	  adb shell or root can reach it.  Still, never enable this in a kernel
+	  you intend to ship.

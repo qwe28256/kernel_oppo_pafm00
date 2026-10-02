@@ -59,95 +59,22 @@ print(f"kernel.gz single-member gzip OK: {len(data)} bytes (raw {len(raw)})")
 EOF
 log "kernel: stock gz 12099139 -> ours $(stat -c%s "${WORK}/kernel.gz")"
 
-log "== 2b/6 append fstab.default to ColorOS ramdisk =="
-# ColorOS first-stage init reads fstab via "/fstab." + androidboot.fstab_suffix,
-# and ABL appends fstab_suffix=default, but the ramdisk only ships fstab.qcom ->
-# ReadDefaultFstab() failed -> first stage mount skipped -> sepolicy unfindable ->
-# init: InitFatalReboot (signal 6) -> reboot bootloader. Appending a second cpio
-# archive containing fstab.default (= fstab.qcom) fixes first stage mount.
-# initramfs parses concatenated archives; the original archive bytes stay intact.
-python3 - "${WORK}/ramdisk.cpio" <<'PYEOF'
-import sys
-p = sys.argv[1]
-orig = open(p, 'rb').read()
-# walk the newc archive to pull fstab.qcom's data
-i, fdata = 0, None
-while i + 110 <= len(orig) and orig[i:i+6] == b'070701':
-    f = [int(orig[i+6+k*8:i+14+k*8], 16) for k in range(13)]
-    namesize, filesize = f[11], f[6]
-    name = orig[i+110:i+110+namesize-1]
-    dstart = i + 110 + namesize + ((4 - (110 + namesize) % 4) % 4)
-    if name == b'fstab.qcom':
-        fdata = orig[dstart:dstart + filesize]
-        break
-    i = dstart + filesize + ((4 - filesize % 4) % 4)
-assert fdata is not None, 'fstab.qcom not found in ramdisk'
-
-def entry(name, data, mode=0o100440):
-    nb = name + b'\x00'
-    e = b'070701' + ''.join(f'{v:08X}' for v in
-            [0, mode, 0, 0, 1, 0, len(data), 0, 0, 0, 0, len(nb), 0]).encode() + nb
-    e += b'\x00' * ((4 - len(e) % 4) % 4)
-    e += data + b'\x00' * ((4 - len(data) % 4) % 4)
-    return e
-
-def trailer():
-    nb = b'TRAILER!!!\x00'
-    e = b'070701' + b'00000000' * 13 + nb
-    return e + b'\x00' * ((4 - len(e) % 4) % 4)
-
-seg = entry(b'fstab.default', fdata) + trailer()
-# kernel initramfs parses concatenated archives: seg creates /fstab.default,
-# then the pristine original archive follows (contains no fstab.default).
-open(p, 'wb').write(seg + orig)
-print(f'fstab.default appended ({len(fdata)} bytes); ramdisk total {len(seg) + len(orig)}')
-PYEOF
-
-
 log "== 3/6 replace kernel_dtb =="
-if [ "${UART_DEBUG}" = "1" ]; then
+if [ "${UART_DEBUG:-0}" = "1" ]; then
     cp "${TREE}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107-uart.dtb" "${WORK}/kernel_dtb"
     log "kernel_dtb: UART-DEBUG variant ($(stat -c%s "${WORK}/kernel_dtb") bytes, uart9 okay, full board content)"
 else
-    cp "${TREE}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107.dtb" "${WORK}/kernel_dtb"
-    log "kernel_dtb: $(stat -c%s "${WORK}/kernel_dtb") bytes (stock 842055)"
+    # Stock PAFM00 extracted DTB (842055 bytes, carries prjversion 17107 + 17127 + RTIC)
+    # Highest priority per AGENTS.md rule 2a
+    if [ -f "${SRC}/kernel_dtb" ]; then
+        cp "${SRC}/kernel_dtb" "${WORK}/kernel_dtb"
+        log "kernel_dtb: stock extracted DTB ($(stat -c%s "${WORK}/kernel_dtb") bytes, 17107+17127 dual board + RTIC)"
+    else
+        cp "${TREE}/arch/arm64/boot/dts/qcom/sdm845-v2.1-17107.dtb" "${WORK}/kernel_dtb"
+        log "kernel_dtb: compiled single DTB ($(stat -c%s "${WORK}/kernel_dtb") bytes)"
+    fi
 fi
 
-if [ "${UART_DEBUG}" = "1" ]; then
-    log "== 3b/6 edit header cmdline (console / earlycon variant) =="
-    # magiskboot repack reads the TEXT header file dumped by unpack, not the
-    # raw boot.img bytes (verified: editing boot.img had no effect on the
-    # repacked image header).
-    #   UART_DEBUG=1           : console only, earlycon stripped
-    #   UART_EARLY=1 (w/ above): also earlycon=msm_geni_serial,0xA84000 +
-    #        clk_ignore_unused + regulator_ignore_unused so the earlycon
-    #        registers stay alive into late init (clk_disable_unused would
-    #        otherwise gate QUP1_S1 under earlycon's poll loop).
-    python3 - "${WORK}/header" <<'PYEOF'
-import sys, os
-p = sys.argv[1]
-early = os.environ.get('UART_EARLY') == '1'
-lines = open(p).read().split('\n')
-out, hit = [], 0
-for l in lines:
-    if l.startswith('cmdline='):
-        base = l[len('cmdline='):]
-        target = ' earlycon=msm_geni_serial,0xA84000'
-        assert target in base, f"earlycon not in cmdline: {base[:80]}..."
-        base = base.replace(target, '')
-        if early:
-            base += ' earlycon=msm_geni_serial,0xA84000 clk_ignore_unused regulator_ignore_unused'
-            print("cmdline: console + EARLYCON + clk/regulator_ignore_unused")
-        else:
-            print("cmdline: earlycon stripped (console-only variant)")
-        assert len(base) < 512, f"cmdline too long: {len(base)}"
-        l = 'cmdline=' + base
-        hit += 1
-    out.append(l)
-assert hit == 1, f"cmdline lines touched: {hit}"
-open(p, 'w').write('\n'.join(out))
-PYEOF
-fi
 
 log "== 4/6 repack boot.img (magiskboot recomputes CHECKSUM) =="
 ( cd "${WORK}" && rm -f kernel dtb
@@ -169,16 +96,12 @@ MODDIR="$(cat out-pafm00/kernelrelease.txt | xargs -I{} echo out-pafm00/modules_
 MPKG="${PACK}/vendor-modules"; mkdir -p "${MPKG}"
 # stock layout: flat /vendor/lib/modules with metadata files
 find "${MODDIR}" -name "*.ko" -exec cp {} "${MPKG}/" \;
-cp "${MODDIR}/modules.dep" "${MODDIR}/modules.alias" "${MODDIR}/modules.softdep" "${MPKG}/" 2>/dev/null || die "depmod metadata missing"
+sed -E 's|kernel/[^ :]*/|/vendor/lib/modules/|g' "${MODDIR}/modules.dep" > "${MPKG}/modules.dep"
+cp "${MODDIR}/modules.alias" "${MODDIR}/modules.softdep" "${MPKG}/" 2>/dev/null || die "depmod metadata missing"
 # modules.load: keep the stock 22-entry ORDER; ship only entries that exist
-# as ko. The 10 techpack audio drivers (wcd-core pinctrl-wcd swr-wcd-ctrl
-# snd-soc-wcd9xxx wcd-dsp-glink snd-soc-wcd934x snd-soc-wcd-mbhc snd-soc-wsa881x
-# snd-soc-sdm845 snd-soc-wcd-spi) are BUILT-IN in our kernel (sdm845auto.conf
-# make-vars =y; tristate.conf does not know them, see REVIEW_BUILTIN.md) so
-# their stock lines must be dropped (no ko to insmod). qca_cld3_wlan.ko keeps
-# its stock position (21st of 22); stock init.target.rc:127 insmods it.
-STOCK_LOAD="/tmp/pafm00_phase0/vendor_modules/vendor/lib/modules/modules.load"
-[ -f "${STOCK_LOAD}" ] || STOCK_LOAD="${SRC}/../modules.load.fallback"
+# as ko. The 10 techpack audio drivers are BUILT-IN in our kernel.
+STOCK_LOAD="${TREE}/oppo_device_out/stock_modules_metadata/modules.load"
+[ -f "${STOCK_LOAD}" ] || STOCK_LOAD="/tmp/pafm00_phase0/vendor_modules/vendor/lib/modules/modules.load"
 DROPPED=""
 while read -r m; do
     [ -n "${m}" ] || continue
@@ -193,7 +116,7 @@ done < <(grep -E '\.ko$' "${STOCK_LOAD}") > "${MPKG}/modules.load"
 [ -n "${DROPPED}" ] && log "modules.load: dropped built-in audio (no ko shipped):${DROPPED}"
 grep -q '^qca_cld3_wlan\.ko$' "${MPKG}/modules.load" || die "qca_cld3_wlan.ko missing from modules.load"
 log "modules packaged: $(ls "${MPKG}"/*.ko | wc -l) ko, load list $(wc -l < "${MPKG}/modules.load") entries"
-tar -C "${MPKG}" -cf "${PACK}/vendor-modules.tar" .
+tar --format=ustar --owner=0 --group=0 -C "${MPKG}" -cf "${PACK}/vendor-modules.tar" .
 sha256sum "${PACK}/boot-pafm00.img" "${PACK}/vendor-modules.tar" "${SRC}/dtbo/dtbo.img" > "${PACK}/SHA256SUMS.pack"
 cat "${PACK}/SHA256SUMS.pack" | tee -a "$LOG"
 log "== DONE — artifacts in ${PACK} =="

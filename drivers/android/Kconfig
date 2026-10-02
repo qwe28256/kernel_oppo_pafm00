@@ -54,6 +54,12 @@ config ANDROID_BINDER_IPC_SELFTEST
 	  exhaustively with combinations of various buffer sizes and
 	  alignments.
 
+config OPPO_HANS
+	bool "HANS kernel and HANS native communication channel"
+	default y
+	---help---
+	  Key events (signal/network package/binder) report to HAS native.
+
 endif # if ANDROID
 
 endmenu

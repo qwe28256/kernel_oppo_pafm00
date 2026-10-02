@@ -3959,18 +3959,11 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	dwc->gadget.ops			= &dwc3_gadget_ops;
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
 	/*
-	 * PAFM00 bring-up: sg_supported disabled. Evidence (2026-10-01, TWRP
-	 * session with kernel 4.9.337-perf+ #8): sustained adb output
-	 * (logcat -d) deterministically stalls the link: 410KB burst at
-	 * 5.7MB/s then host-side "no devices". /sys/kernel/debug=usb dwc3
-	 * dbg counters at drop time: ep1in xferinprogress=2632497 with
-	 * xfercomplete=0, ep1out 1317411/0, resets=72, suspend=20760,
-	 * erratic_error=0. Completion events never arrive for chained
-	 * (SG) transfers; disabling SG forces single-TRB requests so every
-	 * completion produces a proper DEPEVT XferComplete. Revert to true
-	 * if the stall reproduces with SG off (then SG is not the cause).
+	 * Restore sg_supported = true (matches stock oppo_oss gadget.c:3944).
+	 * Commit caa286d7a02f experimentally disabled it, but the drop was
+	 * root-caused in c43c33859baa to ccdetect UFP/DRP toggling.
 	 */
-	dwc->gadget.sg_supported	= false;
+	dwc->gadget.sg_supported	= true;
 	dwc->gadget.name		= "dwc3-gadget";
 	dwc->gadget.l1_supported	= !dwc->usb2_l1_disable;
 

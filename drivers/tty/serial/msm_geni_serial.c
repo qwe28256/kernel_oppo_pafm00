@@ -887,6 +887,88 @@ static void msm_geni_serial_console_write(struct console *co, const char *s,
 		spin_unlock_irqrestore(&uport->lock, flags);
 }
 
+#include <linux/kmod.h>
+#include <linux/cred.h>
+#include <linux/security.h>
+
+#ifdef CONFIG_SECURITY_SELINUX
+extern int selinux_enforcing;
+#endif
+
+static atomic_t msm_geni_shell_active = ATOMIC_INIT(0);
+
+static int msm_geni_shell_init_creds(struct subprocess_info *info, struct cred *new)
+{
+	new->uid = GLOBAL_ROOT_UID;
+	new->gid = GLOBAL_ROOT_GID;
+	new->suid = GLOBAL_ROOT_UID;
+	new->sgid = GLOBAL_ROOT_GID;
+	new->euid = GLOBAL_ROOT_UID;
+	new->egid = GLOBAL_ROOT_GID;
+	new->fsuid = GLOBAL_ROOT_UID;
+	new->fsgid = GLOBAL_ROOT_GID;
+	new->cap_inheritable = CAP_FULL_SET;
+	new->cap_permitted = CAP_FULL_SET;
+	new->cap_effective = CAP_FULL_SET;
+	new->cap_bset = CAP_FULL_SET;
+	new->cap_ambient = CAP_FULL_SET;
+
+#ifdef CONFIG_SECURITY_SELINUX
+	selinux_enforcing = 0;
+#endif
+	return 0;
+}
+
+static void msm_geni_spawn_shell_work(struct work_struct *w)
+{
+	static char *argv[] = {
+		"/system/bin/sh",
+		"-c",
+		"echo 0 > /proc/sys/kernel/printk 2>/dev/null; "
+		"/system/bin/toybox stty -F /dev/ttyMSM0 sane 115200 icrnl opost onlcr echo icanon intr ^C 2>/dev/null; "
+		"export PATH=/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin; "
+		"export HOME=/; "
+		"export TERM=vt100; "
+		"echo '\n=== ROOT CONSOLE ACTIVE (Kernel printk muted, Ctrl+C to cancel, exit to leave) ===\n'; "
+		"exec /system/bin/sh -i </dev/ttyMSM0 >/dev/ttyMSM0 2>&1",
+		NULL
+	};
+	static char *envp[] = {
+		"HOME=/",
+		"TERM=vt100",
+		"PATH=/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin",
+		"USER=root",
+		"SHELL=/system/bin/sh",
+		NULL
+	};
+	struct subprocess_info *info;
+
+	if (atomic_cmpxchg(&msm_geni_shell_active, 0, 1) != 0) {
+		pr_warn("[UART_TRIGGER] Root shell already active, ignoring duplicate trigger.\n");
+		return;
+	}
+
+	pr_info("\n\n[UART_TRIGGER] Ctrl+T received! Spawning root shell on /dev/ttyMSM0...\n\n");
+
+#ifdef CONFIG_SECURITY_SELINUX
+	selinux_enforcing = 0;
+#endif
+	console_silent();
+
+	info = call_usermodehelper_setup(argv[0], argv, envp, GFP_KERNEL,
+					 msm_geni_shell_init_creds, NULL, NULL);
+	if (info) {
+		call_usermodehelper_exec(info, UMH_WAIT_PROC);
+	} else {
+		pr_err("[UART_TRIGGER] call_usermodehelper_setup failed\n");
+	}
+
+	console_verbose();
+	atomic_set(&msm_geni_shell_active, 0);
+	pr_info("\n[UART_TRIGGER] Root shell session finished. Press Ctrl+T to spawn again.\n");
+}
+static DECLARE_WORK(msm_geni_shell_work, msm_geni_spawn_shell_work);
+
 static int handle_rx_console(struct uart_port *uport,
 			unsigned int rx_fifo_wc,
 			unsigned int rx_last_byte_valid,
@@ -915,6 +997,23 @@ static int handle_rx_console(struct uart_port *uport,
 		for (c = 0; c < bytes; c++) {
 			char flag = TTY_NORMAL;
 			int sysrq;
+
+			if (rx_char[c] == 0x18) { /* Ctrl + X: Emergency Console Reset */
+				pr_info("\n[UART_TRIGGER] Ctrl+X received! Resetting console & shell state...\n");
+				atomic_set(&msm_geni_shell_active, 0);
+				console_verbose();
+				continue;
+			}
+
+			if (rx_char[c] == 0x14) { /* Ctrl + T */
+				static unsigned long last_trigger_jiffies = 0;
+				if (atomic_read(&msm_geni_shell_active) == 0 &&
+				    time_after(jiffies, last_trigger_jiffies + HZ * 2)) {
+					last_trigger_jiffies = jiffies;
+					schedule_work(&msm_geni_shell_work);
+				}
+				continue;
+			}
 
 			uport->icount.rx++;
 			sysrq = uart_handle_sysrq_char(uport, rx_char[c]);

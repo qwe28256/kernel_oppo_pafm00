@@ -330,12 +330,6 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_REAL_CAPACITY,
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
-	/* Properties of type `const char *' */
-	POWER_SUPPLY_PROP_MODEL_NAME,
-	POWER_SUPPLY_PROP_MANUFACTURER,
-	POWER_SUPPLY_PROP_SERIAL_NUMBER,
-	POWER_SUPPLY_PROP_BATTERY_TYPE,
-	POWER_SUPPLY_PROP_CYCLE_COUNTS,
 #ifdef VENDOR_EDIT
 	/* OPLUS port: verbatim from oppo_oss include/linux/power_supply.h @ d3aa37fcc18c */
 	POWER_SUPPLY_PROP_ADAPTER_FW_UPDATE,
@@ -357,6 +351,12 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_SHORT_C_HW_STATUS,
 #endif
 #endif /*VENDOR_EDIT*/
+	/* Properties of type `const char *' */
+	POWER_SUPPLY_PROP_MODEL_NAME,
+	POWER_SUPPLY_PROP_MANUFACTURER,
+	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+	POWER_SUPPLY_PROP_BATTERY_TYPE,
+	POWER_SUPPLY_PROP_CYCLE_COUNTS,
 };
 
 enum power_supply_type {

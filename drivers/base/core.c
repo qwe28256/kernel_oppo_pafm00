@@ -333,17 +333,8 @@ static int dev_uevent(struct kset *kset, struct kobject *kobj,
 	if (dev->type && dev->type->name)
 		add_uevent_var(env, "DEVTYPE=%s", dev->type->name);
 
-	/*
-	 * PAFM00: dev_uevent runs in kworker context while USB gadget ffs
-	 * rebind churn (init retry loops on PAFM00 TWRP) can concurrently
-	 * clear dev->driver between the check and the ->name dereference,
-	 * causing a NULL-deref panic inside add_uevent_var. Same fix shape
-	 * as openEuler-SA-2024-2079 (4.9/4.14 vendor trees).
-	 */
-	device_lock(dev);
 	if (dev->driver)
 		add_uevent_var(env, "DRIVER=%s", dev->driver->name);
-	device_unlock(dev);
 
 	/* Add common DT information about the device */
 	of_device_uevent(dev, env);

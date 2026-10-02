@@ -630,23 +630,8 @@ static int dwc3_gadget_set_ep_config(struct dwc3 *dwc, struct dwc3_ep *dep,
 		params.param0 |= DWC3_DEPCFG_FIFO_NUMBER(dep->number >> 1);
 
 	if (desc->bInterval) {
-		u8 bInterval_m1;
-
-		/*
-		 * Valid range for DEPCFG.bInterval_m1 is from 0 to 13, and it
-		 * must be set to 0 when the controller operates in full-speed.
-		 */
-		bInterval_m1 = min_t(u8, desc->bInterval - 1, 13);
-		if (dwc->gadget.speed == USB_SPEED_FULL)
-			bInterval_m1 = 0;
-
-		if (usb_endpoint_type(desc) == USB_ENDPOINT_XFER_INT &&
-		    dwc->gadget.speed == USB_SPEED_FULL)
-			dep->interval = desc->bInterval;
-		else
-			dep->interval = 1 << (desc->bInterval - 1);
-
-		params.param1 |= DWC3_DEPCFG_BINTERVAL_M1(bInterval_m1);
+		params.param1 |= DWC3_DEPCFG_BINTERVAL_M1(desc->bInterval - 1);
+		dep->interval = 1 << (desc->bInterval - 1);
 	}
 
 	return dwc3_send_gadget_ep_cmd(dep, DWC3_DEPCMD_SETEPCONFIG, &params);
@@ -1058,19 +1043,6 @@ static void dwc3_prepare_one_trb(struct dwc3_ep *dep,
 	if (usb_endpoint_xfer_bulk(dep->endpoint.desc) && dep->stream_capable)
 		trb->ctrl |= DWC3_TRB_CTRL_SID_SOFN(req->request.stream_id);
 
-	/*
-	 * As per data book 4.2.3.2TRB Control Bit Rules section
-	 *
-	 * The controller autonomously checks the HWO field of a TRB to determine if the
-	 * entire TRB is valid. Therefore, software must ensure that the rest of the TRB
-	 * is valid before setting the HWO field to '1'. In most systems, this means that
-	 * software must update the fourth DWORD of a TRB last.
-	 *
-	 * However there is a possibility of CPU re-ordering here which can cause
-	 * controller to observe the HWO bit set prematurely.
-	 * Add a write memory barrier to prevent CPU re-ordering.
-	 */
-	wmb();
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
 
 	trace_dwc3_prepare_trb(dep, trb);
@@ -1967,7 +1939,10 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 {
 	u32			reg, reg1;
 	u32			timeout = 1500;
-
+#ifdef VENDOR_EDIT
+	/* Yichun.Chen	PSW.BSP.CHG  2019-08-07  for detect CDP */
+	ktime_t start, diff;
+#endif
 	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
 	if (is_on) {
 		dbg_event(0xFF, "Pullup_enable", is_on);
@@ -1978,7 +1953,28 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 
 		if (dwc->revision >= DWC3_REVISION_194A)
 			reg &= ~DWC3_DCTL_KEEP_CONNECT;
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-08-07  for detect CDP */
+		start = ktime_get();
+		/* issue device SoftReset */
+		dwc3_writel(dwc->regs, DWC3_DCTL, reg | DWC3_DCTL_CSFTRST);
+		do {
+			reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+			if (!(reg & DWC3_DCTL_CSFTRST))
+				break;
 
+			/* poll for max. 10ms */
+
+			diff = ktime_sub(ktime_get(), start);
+		/* poll for max. 10ms */
+			if (ktime_to_ms(diff) > DWC3_SOFT_RESET_TIMEOUT) {
+				printk_ratelimited(KERN_ERR
+					"%s:core Reset Timed Out\n", __func__);
+				break;
+			}
+			cpu_relax();
+		} while (true);
+#endif
 		dwc3_event_buffers_setup(dwc);
 		dwc3_gadget_restart(dwc);
 		reg = dwc3_readl(dwc->regs, DWC3_DCTL);
@@ -3133,15 +3129,6 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	dwc->connected = true;
 
 	/*
-	 * Ideally, dwc3_reset_gadget() would trigger the function
-	 * drivers to stop any active transfers through ep disable.
-	 * However, for functions which defer ep disable, such as mass
-	 * storage, we will need to rely on the call to stop active
-	 * transfers here, and avoid allowing of request queuing.
-	 */
-	dwc->connected = false;
-
-	/*
 	 * WORKAROUND: DWC3 revisions <1.88a have an issue which
 	 * would cause a missing Disconnect Event if there's a
 	 * pending Setup Packet in the FIFO.
@@ -3954,11 +3941,6 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 
 	dwc->gadget.ops			= &dwc3_gadget_ops;
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;
-	/*
-	 * Restore sg_supported = true (matches stock oppo_oss gadget.c:3944).
-	 * Commit caa286d7a02f experimentally disabled it, but the drop was
-	 * root-caused in c43c33859baa to ccdetect UFP/DRP toggling.
-	 */
 	dwc->gadget.sg_supported	= true;
 	dwc->gadget.name		= "dwc3-gadget";
 	dwc->gadget.l1_supported	= !dwc->usb2_l1_disable;

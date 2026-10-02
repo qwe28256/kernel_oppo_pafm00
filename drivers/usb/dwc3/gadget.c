@@ -3740,6 +3740,7 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3 *dwc)
 
 	dwc->bh_handled_evt_cnt[dwc->bh_dbg_index] += (evt->count / 4);
 	evt->count = 0;
+	evt->flags &= ~DWC3_EVENT_PENDING;
 	ret = IRQ_HANDLED;
 
 	/* Unmask interrupt */
@@ -3750,9 +3751,6 @@ static irqreturn_t dwc3_process_event_buf(struct dwc3 *dwc)
 	if (dwc->imod_interval)
 		dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0),
 				DWC3_GEVNTCOUNT_EHB);
-
-	/* Keep the clearing of DWC3_EVENT_PENDING at the end */
-	evt->flags &= ~DWC3_EVENT_PENDING;
 
 	return ret;
 }
@@ -3776,14 +3774,12 @@ static irqreturn_t dwc3_thread_interrupt(int irq, void *_dwc)
 
 	start_time = ktime_get();
 
-	local_bh_disable();
 	spin_lock_irqsave(&dwc->lock, flags);
 	dwc->bh_handled_evt_cnt[dwc->bh_dbg_index] = 0;
 
 	ret = dwc3_process_event_buf(dwc);
 
 	spin_unlock_irqrestore(&dwc->lock, flags);
-	local_bh_enable();
 
 	temp_time = ktime_to_us(ktime_sub(ktime_get(), start_time));
 	dwc->bh_completion_time[dwc->bh_dbg_index] = temp_time;

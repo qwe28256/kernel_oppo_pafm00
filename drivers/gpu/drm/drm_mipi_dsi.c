@@ -1056,7 +1056,13 @@ EXPORT_SYMBOL(mipi_dsi_dcs_set_tear_scanline);
 int mipi_dsi_dcs_set_display_brightness(struct mipi_dsi_device *dsi,
 					u16 brightness)
 {
-	u8 payload[2] = { brightness & 0xff, brightness >> 8 };
+	/*
+	 * OPPO Find X (sofeg02) DCS 0x51 is a 2-byte big-endian write.
+	 * Evidence: ~/oppo_oss/drivers/gpu/drm/drm_mipi_dsi.c VENDOR_EDIT branch
+	 * sends {brightness >> 8, brightness & 0xff}; the upstream LSB-first
+	 * order makes the 0..1023 slider non-monotonic on the panel -> flicker.
+	 */
+	u8 payload[2] = { brightness >> 8, brightness & 0xff };
 	ssize_t err;
 
 	err = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,

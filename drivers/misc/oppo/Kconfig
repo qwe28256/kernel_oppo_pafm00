@@ -25,3 +25,16 @@ config MOTOR_CLASS_INTERFACE
 	  Say Y here if you want to using motor class interface
 
 endif #OPPO_CHARGER
+
+config OPPO_SIMPLE_ROOT
+	bool "OPPO simple in-kernel root (debug only)"
+	default n
+	help
+	  Say Y here to build /dev/opporoot, a minimal debug backdoor that lets
+	  a userspace process escalate itself to uid 0 (and switches SELinux to
+	  permissive) through a single ioctl.
+
+	  This exists only to give the PAFM00 kernel-porting workflow a root
+	  shell without re-patching every test boot image for APatch.  Any
+	  process able to open /dev/opporoot becomes root, so never enable this
+	  in a kernel you intend to ship.

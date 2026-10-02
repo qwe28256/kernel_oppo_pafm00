@@ -6472,6 +6472,81 @@ static struct snd_soc_dai_link msm_auxpcm_be_dai_links[] = {
 	},
 };
 
+/*
+ * OPPO Find X (PAFM00) speaker PA support.
+ * The speaker is driven by an external Maxim MAX98927 smart amplifier on
+ * Quaternary MI2S instead of the WSA881x speakers amplifier. The backend
+ * DAI link codec is selected at runtime through the "oppo,speaker-pa" DT
+ * property (see populate_snd_card_dailinks()).
+ * Evidence: ~/oppo_oss_module/source/android/kernel/msm-4.9/techpack/audio/asoc/sdm845.c
+ * (OPLUS_ARCH_EXTENDS blocks around lines 6517-6601 and 6993-7046).
+ */
+static struct snd_soc_dai_link maxim_fe_dai[] = {
+	{/* hw:x,40 */
+		.name = "Quaternary MI2S_TX Hostless",
+		.stream_name = "Quaternary MI2S_TX Hostless",
+		.cpu_dai_name = "QUAT_MI2S_TX_HOSTLESS",
+		.platform_name	= "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		 /* this dailink has playback support */
+		.ignore_pmdown_time = 1,
+		/* This dainlink has MI2S support */
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+};
+
+static int maxim_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+				  struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = 48000;
+	channels->min = channels->max = 2;
+
+	return 0;
+}
+
+static struct snd_soc_dai_link maxim_be_dai_links[] = {
+	{
+		.name = LPASS_BE_QUAT_MI2S_RX,
+		.stream_name = "Quaternary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.3",
+		.platform_name = "msm-pcm-routing",
+		.codec_dai_name = "max98927-aif1",
+		.codec_name = "max98927",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+	{
+		.name = LPASS_BE_QUAT_MI2S_TX,
+		.stream_name = "Quaternary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.3",
+		.platform_name = "msm-pcm-routing",
+		.codec_dai_name = "max98927-aif1",
+		.codec_name = "max98927",
+		.no_pcm = 1,
+		.dpcm_capture = 1,
+		.id = MSM_BACKEND_DAI_QUATERNARY_MI2S_TX,
+		.be_hw_params_fixup = maxim_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+};
+
 static struct snd_soc_dai_link msm_tavil_snd_card_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
 			 ARRAY_SIZE(msm_tavil_fe_dai_links) +
@@ -6481,7 +6556,8 @@ static struct snd_soc_dai_link msm_tavil_snd_card_dai_links[
 			 ARRAY_SIZE(msm_wcn_be_dai_links) +
 			 ARRAY_SIZE(ext_disp_be_dai_link) +
 			 ARRAY_SIZE(msm_mi2s_be_dai_links) +
-			 ARRAY_SIZE(msm_auxpcm_be_dai_links)];
+			 ARRAY_SIZE(msm_auxpcm_be_dai_links) +
+			 ARRAY_SIZE(maxim_fe_dai)];
 
 static int msm_snd_card_tavil_late_probe(struct snd_soc_card *card)
 {
@@ -6768,6 +6844,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	int len_1, len_2, len_3, len_4;
 	int total_links;
 	const struct of_device_id *match;
+	/* OPPO: custom speaker PA selection via "oppo,speaker-pa" */
+	const char *oppo_speaker_type = "oppo,speaker-pa";
+	const char *product_name = NULL;
+	struct snd_soc_dai_link *temp_link;
+	int i;
 
 	match = of_match_node(sdm845_asoc_machine_of_match, dev->of_node);
 	if (!match) {
@@ -6819,10 +6900,44 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		}
 		if (of_property_read_bool(dev->of_node,
 					  "qcom,mi2s-audio-intf")) {
+			/* OPPO: if "oppo,speaker-pa" is "maxim" and the
+			 * MAX98927 codec is registered, route the Quaternary
+			 * MI2S backends to the external speaker amplifier.
+			 */
+			if (!of_property_read_string(dev->of_node,
+						     oppo_speaker_type,
+						     &product_name)) {
+				pr_info("%s: custom speaker product %s\n",
+					__func__, product_name);
+				for (i = 0; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+					temp_link = &msm_mi2s_be_dai_links[i];
+					if (temp_link->id == MSM_BACKEND_DAI_QUATERNARY_MI2S_RX) {
+						if (!strcmp(product_name, "maxim") &&
+						    soc_find_component(NULL, maxim_be_dai_links[0].codec_name))
+							memcpy(temp_link, &maxim_be_dai_links[0],
+							       sizeof(maxim_be_dai_links[0]));
+					} else if (temp_link->id == MSM_BACKEND_DAI_QUATERNARY_MI2S_TX) {
+						if (!strcmp(product_name, "maxim") &&
+						    soc_find_component(NULL, maxim_be_dai_links[1].codec_name))
+							memcpy(temp_link, &maxim_be_dai_links[1],
+							       sizeof(maxim_be_dai_links[1]));
+					}
+				}
+			}
 			memcpy(msm_tavil_snd_card_dai_links + total_links,
 			       msm_mi2s_be_dai_links,
 			       sizeof(msm_mi2s_be_dai_links));
 			total_links += ARRAY_SIZE(msm_mi2s_be_dai_links);
+			if (!of_property_read_string(dev->of_node,
+						     oppo_speaker_type,
+						     &product_name)) {
+				if (!strcmp(product_name, "maxim")) {
+					memcpy(msm_tavil_snd_card_dai_links + total_links,
+					       maxim_fe_dai,
+					       sizeof(maxim_fe_dai));
+					total_links += ARRAY_SIZE(maxim_fe_dai);
+				}
+			}
 		}
 		if (of_property_read_bool(dev->of_node,
 					  "qcom,auxpcm-audio-intf")) {

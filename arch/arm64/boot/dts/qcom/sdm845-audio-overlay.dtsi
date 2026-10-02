@@ -68,6 +68,8 @@
 	// 		<&wsa881x_0213>, <&wsa881x_0214>;
 	// qcom,wsa-aux-dev-prefix = "SpkrLeft", "SpkrRight",
 	// 			  "SpkrLeft", "SpkrRight";
+	/* OPPO Find X: external Maxim MAX98927 speaker amplifier on Quaternary MI2S */
+	oppo,speaker-pa = "maxim";
 };
 
 &soc {

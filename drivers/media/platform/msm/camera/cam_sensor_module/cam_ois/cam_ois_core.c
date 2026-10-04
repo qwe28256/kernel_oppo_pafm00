@@ -837,6 +837,83 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		}
 		o_ctrl->cam_ois_state = CAM_OIS_CONFIG;
 		break;
+#ifdef VENDOR_EDIT
+	case CAM_GET_OIS_GYRO_OFFSET: {
+		uint32_t gyro_offset = 0;
+		uint32_t gyro_offset_x = 0;
+		uint32_t gyro_offset_y = 0;
+
+		rc = camera_io_dev_read(&(o_ctrl->io_master_info), 0x6040,
+			&gyro_offset_x, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "read gyro offset_x fail");
+			goto release_mutex;
+		}
+		gyro_offset_x = (gyro_offset_x & 0xFF) << 8 |
+			(gyro_offset_x & 0xFF00) >> 8;
+
+		rc = camera_io_dev_read(&(o_ctrl->io_master_info), 0x6042,
+			&gyro_offset_y, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "read gyro offset_y fail");
+			goto release_mutex;
+		}
+		gyro_offset_y = (gyro_offset_y & 0xFF) << 8 |
+			(gyro_offset_y & 0xFF00) >> 8;
+
+		gyro_offset = ((gyro_offset_y & 0xFFFF) << 16) |
+			(gyro_offset_x & 0xFFFF);
+		CAM_INFO(CAM_OIS,
+			"final gyro_offset = 0x%x; gyro_x=0x%x, gyro_y=0x%x",
+			gyro_offset, gyro_offset_x, gyro_offset_y);
+
+		if (copy_to_user(u64_to_user_ptr(cmd->handle), &gyro_offset,
+			sizeof(gyro_offset))) {
+			CAM_ERR(CAM_OIS, "Failed Copy to User");
+			rc = -EFAULT;
+			goto release_mutex;
+		}
+		break;
+	}
+
+	case CAM_GET_OIS_HALL_POSITION: {
+		uint32_t hall_position = 0;
+		uint32_t hall_position_x = 0;
+		uint32_t hall_position_y = 0;
+
+		rc = camera_io_dev_read(&(o_ctrl->io_master_info), 0x6058,
+			&hall_position_x, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "read hall_position_x fail");
+			goto release_mutex;
+		}
+
+		rc = camera_io_dev_read(&(o_ctrl->io_master_info), 0x6059,
+			&hall_position_y, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "read hall_position_y fail");
+			goto release_mutex;
+		}
+
+		hall_position = ((hall_position_y & 0xFF) << 16) |
+			(hall_position_x & 0xFF);
+		CAM_INFO(CAM_OIS,
+			"final hall_position = 0x%x; hall_position_x=0x%x, hall_position_y=0x%x",
+			hall_position, hall_position_x, hall_position_y);
+
+		if (copy_to_user(u64_to_user_ptr(cmd->handle), &hall_position,
+			sizeof(hall_position))) {
+			CAM_ERR(CAM_OIS, "Failed Copy to User");
+			rc = -EFAULT;
+			goto release_mutex;
+		}
+		break;
+	}
+#endif
 	default:
 		CAM_ERR(CAM_OIS, "invalid opcode");
 		goto release_mutex;

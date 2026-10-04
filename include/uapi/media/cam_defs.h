@@ -16,7 +16,23 @@
 #define CAM_RELEASE_DEV                         (CAM_COMMON_OPCODE_BASE + 0x6)
 #define CAM_SD_SHUTDOWN                         (CAM_COMMON_OPCODE_BASE + 0x7)
 #define CAM_FLUSH_REQ                           (CAM_COMMON_OPCODE_BASE + 0x8)
+#ifndef VENDOR_EDIT
 #define CAM_COMMON_OPCODE_MAX                   (CAM_COMMON_OPCODE_BASE + 0x9)
+#else
+#define CAM_GET_FUSE_ID                         (CAM_COMMON_OPCODE_BASE + 0x9)
+#define CAM_GET_OIS_GYRO_OFFSET                 (CAM_COMMON_OPCODE_BASE + 0xA)
+#define CAM_GET_OIS_HALL_POSITION               (CAM_COMMON_OPCODE_BASE + 0xB)
+#define CAM_VENDOR_DATA                         (CAM_COMMON_OPCODE_BASE + 0xC)
+#define CAM_GET_DPC_DATA                        (CAM_COMMON_OPCODE_BASE + 0xD)
+#define CAM_WRITE_EEPROM_DATA                   (CAM_COMMON_OPCODE_BASE + 0xE)
+#define CAM_READ_EEPROM_DATA                    (CAM_COMMON_OPCODE_BASE + 0xF)
+#define CAM_READ_EEPROM_SN                      (CAM_COMMON_OPCODE_BASE + 0x10)
+#define CAM_CHECK_EEPROM_DATA                   (CAM_COMMON_OPCODE_BASE + 0x11)
+
+#define CAM_COMMON_OPCODE_MAX                   (CAM_COMMON_OPCODE_BASE + 0x12)
+
+
+#endif
 
 #define CAM_COMMON_OPCODE_BASE_v2           0x150
 #define CAM_ACQUIRE_HW                      (CAM_COMMON_OPCODE_BASE_v2 + 0x1)
@@ -384,11 +400,14 @@ struct cam_buf_io_cfg {
  *
  */
 struct cam_packet_header {
-	uint32_t                op_code;
-	uint32_t                size;
-	uint64_t                request_id;
-	uint32_t                flags;
-	uint32_t                padding;
+        uint32_t                op_code;
+        uint32_t                size;
+        uint64_t                request_id;
+        uint32_t                flags;
+        uint32_t                padding;
+#ifdef VENDOR_EDIT
+        uint64_t                vendor_mode;
+#endif
 };
 
 /**

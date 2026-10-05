@@ -16,6 +16,10 @@
 #include "cam_ois_core.h"
 #include "cam_debug_util.h"
 
+#ifdef VENDOR_EDIT
+struct cam_ois_ctrl_t *g_ois_ctrl = NULL;
+#endif
+
 static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
@@ -306,6 +310,10 @@ static int32_t cam_ois_platform_driver_probe(
 	v4l2_set_subdevdata(&o_ctrl->v4l2_dev_str.sd, o_ctrl);
 
 	o_ctrl->cam_ois_state = CAM_OIS_INIT;
+
+#ifdef VENDOR_EDIT
+	g_ois_ctrl = o_ctrl;
+#endif
 
 	return rc;
 unreg_subdev:

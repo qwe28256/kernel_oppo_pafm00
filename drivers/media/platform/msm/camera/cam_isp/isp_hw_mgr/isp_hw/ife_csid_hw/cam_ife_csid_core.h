@@ -472,6 +472,10 @@ struct cam_ife_csid_hw {
 	bool                             sof_irq_triggered;
 	uint32_t                         irq_debug_cnt;
 	uint32_t                         error_irq_count;
+	#ifdef VENDOR_EDIT
+	/* Xinlan.He@camera modify, 2018/07/10, add debug info for sof_freeze */
+	uint32_t                         pkg_show_cnt;
+	#endif
 };
 
 int cam_ife_csid_hw_probe_init(struct cam_hw_intf  *csid_hw_intf,

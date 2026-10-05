@@ -128,9 +128,25 @@ int32_t delete_request(struct i2c_settings_array *i2c_array)
 
 	list_for_each_entry_safe(i2c_list, i2c_next,
 		&(i2c_array->list_head), list) {
+#ifdef VENDOR_EDIT
+		/*
+		 * SPC (IMX586 QSC) settings are cached in the global
+		 * i2c_settings_list_vendor/reg_setting_vendor and marked
+		 * resident; they must only be unlinked, not freed, so the
+		 * next SPC write can reuse them.
+		 */
+		if (i2c_list->resident) {
+			list_del(&(i2c_list->list));
+		} else {
+			kfree(i2c_list->i2c_settings.reg_setting);
+			list_del(&(i2c_list->list));
+			kfree(i2c_list);
+		}
+#else
 		kfree(i2c_list->i2c_settings.reg_setting);
 		list_del(&(i2c_list->list));
 		kfree(i2c_list);
+#endif
 	}
 	INIT_LIST_HEAD(&(i2c_array->list_head));
 	i2c_array->is_settings_valid = 0;

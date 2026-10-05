@@ -2030,3 +2030,81 @@
                 };
         };
 };
+
+/* #ifdef OPLUS_FEATURE_FACERECOGNITION  */
+&pm8998_gpios {
+        gpio9_adc {
+                gpio9_adc_default: gpio9_adc_default {
+                        pins = "gpio9";
+                        function = "normal";
+                        bias-high-impedance; /*disable GPIO9 for ADC*/
+                };
+        };
+        gpio11_adc {
+                gpio11_adc_default: gpio11_adc_default {
+                        pins = "gpio11";
+                        function = "normal";
+                        bias-high-impedance; /*disable GPIO11 for ADC*/
+                };
+        };
+        gpio21_adc {
+                gpio21_adc_default: gpio21_adc_default {
+                        pins = "gpio21";
+                        function = "normal";
+                        bias-high-impedance; /*disable GPIO21 for ADC*/
+                };
+        };
+};
+
+&pmi8998_lsid0 {
+        oppo_face_common: oppo,face-common {
+                compatible = "oppo,face-common"; //Manufacture, and Model
+                qcom,pm8998face-vadc = <&pm8998_vadc>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&gpio11_adc_default &gpio21_adc_default &gpio9_adc_default>;
+        };
+};
+
+&qupv3_se3_i2c {
+        status = "ok";
+        lm3644@63 {
+                compatible = "lm3644";
+                reg = <0x63>;
+                lm3644,hwen-gpio = <&tlmm 39 0x00>;
+                lm3644,ldo-en-gpio = <&tlmm 40 0x00>;
+                lm3644,watchdog-gpio = <&tlmm 81 0x00>;
+                lm3644,watchdog-en-gpio = <&tlmm 33 0x00>;
+                status = "okay";
+        };
+        lm3643@67 {
+                compatible = "lm3643";
+                reg = <0x67>;
+                lm3643,hwen-gpio = <&tlmm 113 0x00>;
+                status = "okay";
+        };
+        aw36413@6b {
+                compatible = "aw36413";
+                reg = <0x6b>;
+                aw36413,hwen-gpio = <&tlmm 113 0x00>;
+                status = "okay";
+        };
+};
+
+&vendor  {
+        oppo_face_mx6300: oppo,face-mx6300 {
+                compatible = "oppo,face-mx6300";
+
+                /* mx6300 */
+                mx6300_IR_CAMIO-supply = <&pm8998_lvs1>;
+                mx6300,IR_ACAMD_2V8-gpio = <&tlmm 133 0>;
+                mx6300,IR_VCAMD_1V2-gpio = <&tlmm 100 0>;
+                mx6300,IR_PWDN-gpio = <&tlmm 35 0>;
+                mx6300,MX_VISP_VDD_0V9-gpio = <&tlmm 123 0>;
+                mx6300,MX_VISP_VDD1_0V9-gpio = <&tlmm 83 0>;
+                mx6300,MX_VISP_VDDIO_1V8-gpio = <&tlmm 128 0>;
+                mx6300,MX_reset-gpio = <&tlmm 62 0>;
+                mx6300,MX_VDDIO_1V8-gpio = <&tlmm 2 0>;
+                mx6300,MX_tstmode-gpio = <&tlmm 77 0>;
+        };
+};
+/* #endif OPLUS_FEATURE_FACERECOGNITION  */

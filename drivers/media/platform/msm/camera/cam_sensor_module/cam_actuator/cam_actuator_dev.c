@@ -257,6 +257,11 @@ static int32_t cam_actuator_platform_remove(struct platform_device *pdev)
 	kfree(a_ctrl->soc_info.soc_private);
 	kfree(a_ctrl->i2c_data.per_frame);
 	a_ctrl->i2c_data.per_frame = NULL;
+#ifdef VENDOR_EDIT
+	if (a_ctrl->piris_ctrl) {
+		devm_kfree(&pdev->dev, a_ctrl->piris_ctrl);
+	}
+#endif
 	devm_kfree(&pdev->dev, a_ctrl);
 
 	return rc;
@@ -376,6 +381,20 @@ static int32_t cam_actuator_driver_platform_probe(
 	v4l2_set_subdevdata(&a_ctrl->v4l2_dev_str.sd, a_ctrl);
 	a_ctrl->cam_act_state = CAM_ACTUATOR_INIT;
 
+#ifdef VENDOR_EDIT
+	if (a_ctrl->soc_info.index == 0) {
+		a_ctrl->piris_ctrl = devm_kzalloc(&pdev->dev,
+			sizeof(struct cam_actuator_ctrl_t), GFP_KERNEL);
+		if (a_ctrl->piris_ctrl) {
+			memcpy(a_ctrl->piris_ctrl, a_ctrl, sizeof(struct cam_actuator_ctrl_t));
+		} else {
+			CAM_ERR(CAM_ACTUATOR, "a_ctrl->piris_ctrl is NULL");
+		}
+	}
+
+	a_ctrl->is_check_firmware_update = 1;
+#endif
+
 	return rc;
 
 free_mem:
@@ -385,6 +404,11 @@ free_soc:
 free_cci_client:
 	kfree(a_ctrl->io_master_info.cci_client);
 free_ctrl:
+#ifdef VENDOR_EDIT
+	if (a_ctrl->piris_ctrl) {
+		devm_kfree(&pdev->dev, a_ctrl->piris_ctrl);
+	}
+#endif
 	devm_kfree(&pdev->dev, a_ctrl);
 	return rc;
 }

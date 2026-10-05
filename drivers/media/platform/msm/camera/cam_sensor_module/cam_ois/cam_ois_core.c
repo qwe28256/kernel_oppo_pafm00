@@ -355,6 +355,7 @@ static int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 	power_info = &soc_private->power_info;
 	soc_info = &o_ctrl->soc_info;
 
+#ifndef VENDOR_EDIT
 	if (!power_info) {
 		CAM_ERR(CAM_OIS, "failed: power_info %pK", power_info);
 		return -EINVAL;
@@ -365,6 +366,20 @@ static int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 		CAM_ERR(CAM_OIS, "power down the core is failed:%d", rc);
 		return rc;
 	}
+#else
+	if (soc_info->num_rgltr > 0) {
+		if (!power_info) {
+			CAM_ERR(CAM_OIS, "failed: power_info %pK", power_info);
+			return -EINVAL;
+		}
+
+		rc = cam_sensor_util_power_down(power_info, soc_info);
+		if (rc) {
+			CAM_ERR(CAM_OIS, "power down the core is failed:%d", rc);
+			return rc;
+		}
+	}
+#endif
 
 	camera_io_release(&o_ctrl->io_master_info);
 

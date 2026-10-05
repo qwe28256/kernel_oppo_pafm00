@@ -1691,6 +1691,14 @@ int cam_req_mgr_process_add_req(void *priv, void *data)
 	task_data = (struct crm_task_payload *)data;
 	add_req = (struct cam_req_mgr_add_request *)&task_data->u;
 
+	/*
+	 * Validate the link, it might have been unreserved by this time
+	 */
+	if ((link != NULL) && (cam_get_device_priv(link->link_hdl) == NULL)) {
+		CAM_DBG(CAM_CRM, "link ptr NULL %x", add_req->link_hdl);
+		return -EINVAL;
+	}
+
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
 		if (device->dev_hdl == add_req->dev_hdl) {
@@ -2650,6 +2658,11 @@ int cam_req_mgr_sync_config(
 	struct cam_req_mgr_core_session *cam_session;
 	struct cam_req_mgr_core_link    *link1 = NULL;
 	struct cam_req_mgr_core_link    *link2 = NULL;
+#ifdef VENDOR_EDIT
+	struct cam_req_mgr_connected_device *dev = NULL;
+	struct cam_req_mgr_link_evt_data     evt_data;
+	int j = 0;
+#endif
 
 	if (!sync_info) {
 		CAM_ERR(CAM_CRM, "NULL pointer");
@@ -2715,6 +2728,30 @@ int cam_req_mgr_sync_config(
 	CAM_DBG(CAM_REQ,
 		"Sync config on link1 0x%x & link2 0x%x with sync_mode %d",
 		link1->link_hdl, link2->link_hdl, cam_session->sync_mode);
+
+#ifdef VENDOR_EDIT
+	for (j = 0; j < link1->num_devs; j++) {
+		dev = &link1->l_dev[j];
+		evt_data.evt_type = CAM_REQ_MGR_SYNC_SKIP_REQ;
+		evt_data.link_hdl = link1->link_hdl;
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.req_id = 0;
+
+		if (dev->ops && dev->ops->process_evt)
+			dev->ops->process_evt(&evt_data);
+	}
+
+	for (j = 0; j < link2->num_devs; j++) {
+		dev = &link2->l_dev[j];
+		evt_data.evt_type = CAM_REQ_MGR_SYNC_SKIP_REQ;
+		evt_data.link_hdl = link2->link_hdl;
+		evt_data.dev_hdl = dev->dev_hdl;
+		evt_data.req_id = 0;
+
+		if (dev->ops && dev->ops->process_evt)
+			dev->ops->process_evt(&evt_data);
+	}
+#endif
 
 done:
 	mutex_unlock(&cam_session->lock);

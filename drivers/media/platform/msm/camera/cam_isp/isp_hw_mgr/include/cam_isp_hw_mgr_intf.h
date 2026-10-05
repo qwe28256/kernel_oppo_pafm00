@@ -198,6 +198,9 @@ enum cam_isp_hw_mgr_command {
 	CAM_ISP_HW_MGR_CMD_RESUME_HW,
 	CAM_ISP_HW_MGR_CMD_SOF_DEBUG,
 	CAM_ISP_HW_MGR_CMD_MAX,
+#ifdef VENDOR_EDIT
+	CAM_ISP_HW_MGR_CMD_SET_SYNC_MODE,
+#endif
 };
 
 /**

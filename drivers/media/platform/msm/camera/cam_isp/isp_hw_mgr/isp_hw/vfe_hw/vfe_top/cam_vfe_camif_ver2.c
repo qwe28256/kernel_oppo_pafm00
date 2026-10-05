@@ -59,6 +59,9 @@ static int cam_vfe_camif_validate_pix_pattern(uint32_t pattern)
 	case CAM_ISP_PATTERN_YUV_YCRYCB:
 	case CAM_ISP_PATTERN_YUV_CBYCRY:
 	case CAM_ISP_PATTERN_YUV_CRYCBY:
+#ifdef VENDOR_EDIT
+	case CAM_ISP_PATTERN_BAYER_Y:
+#endif
 		rc = 0;
 		break;
 	default:

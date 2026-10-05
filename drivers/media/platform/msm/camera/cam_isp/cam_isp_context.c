@@ -2722,6 +2722,26 @@ static int __cam_isp_ctx_handle_sof_freeze_evt(
 	return rc;
 }
 
+#ifdef VENDOR_EDIT
+static int set_sync_mode(struct cam_context *ctx)
+{
+	int rc = -1;
+	struct cam_hw_cmd_args       hw_cmd_args;
+	struct cam_isp_hw_cmd_args   isp_hw_cmd_args;
+	struct cam_isp_context      *ctx_isp =
+		(struct cam_isp_context *) ctx->ctx_priv;
+
+	hw_cmd_args.ctxt_to_hw_map = ctx_isp->hw_ctx;
+	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
+	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_CMD_SET_SYNC_MODE;
+	hw_cmd_args.u.internal_args = (void *)&isp_hw_cmd_args;
+	rc = ctx->hw_mgr_intf->hw_cmd(ctx->hw_mgr_intf->hw_mgr_priv,
+		&hw_cmd_args);
+
+	return rc;
+}
+#endif
+
 static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
 	struct cam_req_mgr_link_evt_data *link_evt_data)
 {
@@ -2740,6 +2760,12 @@ static int __cam_isp_ctx_process_evt(struct cam_context *ctx,
 	case CAM_REQ_MGR_LINK_EVT_SOF_FREEZE:
 		__cam_isp_ctx_handle_sof_freeze_evt(ctx);
 		break;
+#ifdef VENDOR_EDIT
+	case CAM_REQ_MGR_SYNC_SKIP_REQ:
+		CAM_INFO(CAM_ISP, "SKIP req received");
+		set_sync_mode(ctx);
+		break;
+#endif
 	default:
 		CAM_WARN(CAM_ISP, "Unknown event from CRM");
 		break;

@@ -526,7 +526,11 @@ void cam_hfi_disable_cpu(void __iomem *icp_base)
 		 * and Host can the proceed. No interrupt is expected from FW
 		 * at this time.
 		 */
+#ifdef VENDOR_EDIT
+		msleep(10);
+#else
 		msleep_interruptible(HFI_POLL_TRY_SLEEP);
+#endif
 		try++;
 	}
 

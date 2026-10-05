@@ -323,6 +323,7 @@ static int cam_cpastop_disable_test_irq(struct cam_hw_info *cpas_hw)
 	return 0;
 }
 
+#ifndef VENDOR_EDIT
 static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 {
 	int i;
@@ -345,6 +346,7 @@ static int cam_cpastop_reset_irq(struct cam_hw_info *cpas_hw)
 
 	return 0;
 }
+#endif
 
 static void cam_cpastop_notify_clients(struct cam_cpas *cpas_core,
 	struct cam_cpas_irq_data *irq_data)
@@ -487,8 +489,6 @@ static irqreturn_t cam_cpastop_handle_irq(int irq_num, void *data)
 	if (TEST_IRQ_ENABLE)
 		cam_cpastop_disable_test_irq(cpas_hw);
 
-	cam_cpastop_reset_irq(cpas_hw);
-
 	queue_work(cpas_core->work_queue, &payload->work);
 done:
 	atomic_dec(&cpas_core->irq_count);
@@ -503,8 +503,6 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
 	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
 	struct cam_cpas_private_soc *soc_private = soc_info->soc_private;
-
-	cam_cpastop_reset_irq(cpas_hw);
 
 	for (i = 0; i < camnoc_info->specific_size; i++) {
 		if (camnoc_info->specific[i].enable) {

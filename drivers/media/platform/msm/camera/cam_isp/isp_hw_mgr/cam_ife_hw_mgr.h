@@ -164,6 +164,10 @@ struct cam_ife_hw_mgr_ctx {
 	struct completion               config_done_complete;
 	bool                            init_done;
 	uint32_t                        dual_ife_irq_mismatch_cnt;
+#ifdef VENDOR_EDIT
+	int                             crm_sync_mode;
+	int                             frame_count;
+#endif
 };
 
 /**
